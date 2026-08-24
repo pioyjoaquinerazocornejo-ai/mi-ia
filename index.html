@@ -1,239 +1,458 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mi IA</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-    }
+<title>Mi IA</title>
 
-    h1 {
-      margin: 20px;
-    }
+<style>
 
-    video {
-      width: 95%;
-      max-width: 600px;
-      border-radius: 20px;
-      background: black;
-    }
+body {
+    margin: 0;
+    background: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
 
-    button {
-      margin: 8px;
-      padding: 15px 22px;
-      border: 0;
-      border-radius: 12px;
-      font-size: 17px;
-      font-weight: bold;
-    }
+h1 {
+    margin: 20px;
+}
 
-    #activar {
-      background: #00c853;
-      color: white;
-    }
+video {
+    width: 95%;
+    max-width: 600px;
+    border-radius: 20px;
+    background: black;
+}
 
-    #apagar {
-      background: #d50000;
-      color: white;
-    }
+button {
+    margin: 8px;
+    padding: 14px 22px;
+    border: 0;
+    border-radius: 12px;
+    font-size: 17px;
+    font-weight: bold;
+}
 
-    #hablar {
-      background: #2979ff;
-      color: white;
-    }
+#activar {
+    background: #00c853;
+    color: white;
+}
 
-    #responder {
-      background: #ff9100;
-      color: white;
-    }
+#apagar {
+    background: #d50000;
+    color: white;
+}
 
-    #estado {
-      font-size: 18px;
-      margin: 15px;
-    }
+#estado {
+    font-size: 18px;
+    margin: 15px;
+}
 
-    #texto {
-      margin: 20px;
-      padding: 15px;
-      background: #222;
-      border-radius: 15px;
-      min-height: 25px;
-    }
-  </style>
+#texto {
+    margin: 20px;
+    padding: 15px;
+    background: #222;
+    border-radius: 15px;
+    min-height: 30px;
+}
+
+</style>
 </head>
 
 <body>
 
-  <h1>🤖 Mi IA</h1>
+<h1>🤖 Mi IA</h1>
 
-  <video id="camara" autoplay playsinline></video>
+<video id="camara" autoplay playsinline></video>
 
-  <br>
+<br>
 
-  <button id="activar">📷 Activar cámara</button>
-  <button id="apagar">⛔ Apagar cámara</button>
-  <br>
-  <button id="hablar">🎤 Hablar</button>
-  <button id="responder">🔊 Responder</button>
+<button id="activar">📷 Activar cámara</button>
+<button id="apagar">⛔ Apagar cámara</button>
 
-  <p id="estado">🔴 Cámara apagada</p>
+<p id="estado">🔴 Cámara apagada</p>
 
-  <div id="texto">Aquí aparecerá lo que digas...</div>
+<div id="texto">
+Estoy esperando que hables...
+</div>
 
-  <script>
-    const video = document.getElementById("camara");
-    const activar = document.getElementById("activar");
-    const apagar = document.getElementById("apagar");
-    const hablar = document.getElementById("hablar");
-    const responder = document.getElementById("responder");
-    const estado = document.getElementById("estado");
-    const texto = document.getElementById("texto");
 
-    let stream = null;
-    let ultimaPregunta = "";
+<script>
 
-    // =========================
-    // 📷 CÁMARA
-    // =========================
+const video = document.getElementById("camara");
+const activar = document.getElementById("activar");
+const apagar = document.getElementById("apagar");
+const estado = document.getElementById("estado");
+const texto = document.getElementById("texto");
 
-    activar.onclick = async () => {
-      try {
+let stream = null;
+let reconocimiento = null;
+let temporizador = null;
+let hablando = false;
+
+let camaraActual = "environment";
+
+
+/* =========================
+   📷 CÁMARA
+========================= */
+
+async function encenderCamara(tipo = camaraActual) {
+
+    try {
+
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+
+        camaraActual = tipo;
+
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment"
-          },
-          audio: false
+
+            video: {
+                facingMode: camaraActual
+            },
+
+            audio: false
+
         });
 
         video.srcObject = stream;
-        estado.textContent = "🟢 Cámara activada";
-      } catch (error) {
-        estado.textContent = "❌ No se pudo acceder a la cámara";
-        console.error(error);
-      }
-    };
 
-    apagar.onclick = () => {
-      if (stream) {
+        estado.textContent =
+            camaraActual === "user"
+            ? "🟢 Cámara frontal activada"
+            : "🟢 Cámara trasera activada";
+
+    }
+
+    catch (error) {
+
+        estado.textContent =
+            "❌ No pude acceder a la cámara";
+
+        console.error(error);
+    }
+}
+
+
+function apagarCamara() {
+
+    if (stream) {
+
         stream.getTracks().forEach(track => track.stop());
+
         stream = null;
         video.srcObject = null;
-      }
+    }
 
-      estado.textContent = "🔴 Cámara apagada";
+    estado.textContent = "🔴 Cámara apagada";
+}
+
+
+/* =========================
+   🎤 VOZ
+========================= */
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+
+if (SpeechRecognition) {
+
+    reconocimiento = new SpeechRecognition();
+
+    reconocimiento.lang = "es-ES";
+
+    reconocimiento.continuous = true;
+
+    reconocimiento.interimResults = true;
+
+
+    reconocimiento.onstart = () => {
+
+        if (!hablando) {
+
+            estado.textContent =
+                "🎤 Escuchando...";
+        }
     };
 
 
-    // =========================
-    // 🎤 RECONOCIMIENTO DE VOZ
-    // =========================
+    reconocimiento.onresult = (event) => {
 
-    const SpeechRecognition =
-      window.SpeechRecognition ||
-      window.webkitSpeechRecognition;
+        if (hablando) return;
 
-    let recognition = null;
+        let textoCompleto = "";
 
-    if (SpeechRecognition) {
+        for (
+            let i = event.resultIndex;
+            i < event.results.length;
+            i++
+        ) {
 
-      recognition = new SpeechRecognition();
+            textoCompleto +=
+                event.results[i][0].transcript;
+        }
 
-      recognition.lang = "es-ES";
-      recognition.continuous = false;
-      recognition.interimResults = false;
-
-      recognition.onstart = () => {
-        estado.textContent = "🎤 Te estoy escuchando...";
-      };
-
-      recognition.onresult = (event) => {
-
-        const resultado =
-          event.results[0][0].transcript;
-
-        ultimaPregunta = resultado;
 
         texto.textContent =
-          "Tú: " + resultado;
+            "👤 Tú: " + textoCompleto;
 
-        estado.textContent =
-          "🟢 Te he entendido";
-      };
 
-      recognition.onerror = (event) => {
-        estado.textContent =
-          "❌ Error del micrófono: " + event.error;
-      };
+        /*
+          Reiniciamos el temporizador cada vez
+          que detectamos voz.
+        */
 
-      recognition.onend = () => {
-        if (estado.textContent === "🎤 Te estoy escuchando...") {
-          estado.textContent = "🟢 Listo";
+        clearTimeout(temporizador);
+
+
+        temporizador = setTimeout(() => {
+
+            procesarOrden(textoCompleto);
+
+        }, 3000);
+
+    };
+
+
+    reconocimiento.onerror = (event) => {
+
+        console.log(
+            "Error de reconocimiento:",
+            event.error
+        );
+
+    };
+
+
+    reconocimiento.onend = () => {
+
+        /*
+          Si la IA no está hablando,
+          volvemos a escuchar.
+        */
+
+        if (!hablando) {
+
+            try {
+
+                reconocimiento.start();
+
+            }
+
+            catch (e) {}
+
         }
-      };
 
-    } else {
+    };
 
-      estado.textContent =
-        "❌ Tu navegador no admite reconocimiento de voz";
+
+    try {
+
+        reconocimiento.start();
+
+    }
+
+    catch (e) {}
+
+}
+
+
+/* =========================
+   🧠 PROCESAR LO QUE DICES
+========================= */
+
+function procesarOrden(frase) {
+
+    frase = frase.toLowerCase().trim();
+
+
+    /* 📷 ENCENDER CÁMARA */
+
+    if (
+        frase.includes("prende la cámara") ||
+        frase.includes("enciende la cámara") ||
+        frase.includes("activa la cámara") ||
+        frase.includes("enciende cámara")
+    ) {
+
+        encenderCamara("environment");
+
+        hablar(
+            "He encendido la cámara."
+        );
+
+        return;
     }
 
 
-    hablar.onclick = () => {
+    /* 📷 APAGAR CÁMARA */
 
-      if (!recognition) {
-        alert("Tu navegador no admite reconocimiento de voz.");
+    if (
+        frase.includes("apaga la cámara") ||
+        frase.includes("desactiva la cámara") ||
+        frase.includes("apagar cámara")
+    ) {
+
+        apagarCamara();
+
+        hablar(
+            "He apagado la cámara."
+        );
+
         return;
-      }
-
-      recognition.start();
-    };
+    }
 
 
-    // =========================
-    // 🔊 RESPUESTA DE VOZ
-    // =========================
+    /* 🤳 CÁMARA FRONTAL */
 
-    responder.onclick = () => {
+    if (
+        frase.includes("cámara frontal") ||
+        frase.includes("camara frontal") ||
+        frase.includes("mira la cámara frontal")
+    ) {
 
-      if (!ultimaPregunta) {
-        hablarTexto("Primero dime algo.");
+        encenderCamara("user");
+
+        hablar(
+            "He cambiado a la cámara frontal."
+        );
+
         return;
-      }
-
-      const respuesta =
-        "He escuchado: " + ultimaPregunta +
-        ". Todavía estoy aprendiendo a ver y entender la cámara.";
-
-      texto.textContent =
-        "🤖 IA: " + respuesta;
-
-      hablarTexto(respuesta);
-    };
+    }
 
 
-    function hablarTexto(mensaje) {
+    /* 📷 CÁMARA TRASERA */
 
-      speechSynthesis.cancel();
+    if (
+        frase.includes("cámara trasera") ||
+        frase.includes("camara trasera") ||
+        frase.includes("cámara de atrás") ||
+        frase.includes("camara de atras")
+    ) {
 
-      const voz =
+        encenderCamara("environment");
+
+        hablar(
+            "He cambiado a la cámara trasera."
+        );
+
+        return;
+    }
+
+
+    /*
+      👁️ VISIÓN
+
+      Aquí después conectaremos
+      el modelo de IA que analizará
+      la imagen de la cámara.
+    */
+
+    if (
+        frase.includes("qué ves") ||
+        frase.includes("que ves") ||
+        frase.includes("qué hay") ||
+        frase.includes("que hay") ||
+        frase.includes("describe lo que ves") ||
+        frase.includes("mira esto")
+    ) {
+
+        hablar(
+            "Estoy preparada para analizar la cámara. En la siguiente versión conectaré mi sistema de visión."
+        );
+
+        return;
+    }
+
+
+    /*
+      💬 RESPUESTA NORMAL
+    */
+
+    hablar(
+        "Te he escuchado. Todavía estoy conectando mi cerebro de inteligencia artificial."
+    );
+
+}
+
+
+/* =========================
+   🔊 HABLAR
+========================= */
+
+function hablar(mensaje) {
+
+    hablando = true;
+
+    /*
+      Detenemos temporalmente
+      el reconocimiento para que
+      la IA no se escuche a sí misma.
+    */
+
+    if (reconocimiento) {
+
+        try {
+
+            reconocimiento.stop();
+
+        }
+
+        catch (e) {}
+
+    }
+
+
+    speechSynthesis.cancel();
+
+
+    const voz =
         new SpeechSynthesisUtterance(mensaje);
 
-      voz.lang = "es-ES";
-      voz.rate = 1;
-      voz.pitch = 1;
-      voz.volume = 1;
+    voz.lang = "es-ES";
 
-      speechSynthesis.speak(voz);
-    }
+    voz.rate = 1;
 
-  </script>
+    voz.pitch = 1;
+
+    voz.volume = 1;
+
+
+    voz.onend = () => {
+
+        hablando = false;
+
+        texto.textContent =
+            "🤖 IA: " + mensaje;
+
+
+        setTimeout(() => {
+
+            try {
+
+                reconocimiento.start();
+
+            }
+
+            catch (e) {}
+
+        }, 300);
+
+    };
+
+
+    speechSynthesis.speak(voz);
+
+}
+
+</script>
 
 </body>
 </html>
