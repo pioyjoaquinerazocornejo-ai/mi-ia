@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prueba de visión IA</title>
+
+  <style>
+    body {
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    video {
+      width: 95%;
+      max-width: 600px;
+      border-radius: 18px;
+      margin-top: 15px;
+    }
+
+    button {
+      padding: 15px 20px;
+      margin: 10px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    #camara {
+      background: #00c853;
+      color: white;
+    }
+
+    #analizar {
+      background: #2979ff;
+      color: white;
+    }
+
+    #estado {
+      margin: 20px;
+      font-size: 17px;
+    }
+
+    #resultado {
+      background: #222;
+      border-radius: 15px;
+      padding: 18px;
+      margin-top: 20px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🤖 Visión IA</h1>
+
+<p id="estado">🧠 Preparando modelo...</p>
+
+<video id="video" autoplay playsinline></video>
+
+<br>
+
+<button id="camara">
+📷 Encender cámara
+</button>
+
+<button id="analizar">
+👁️ ¿Qué ves?
+</button>
+
+<div id="resultado">
+Aquí aparecerá la descripción.
+</div>
+
+<script type="module">
+
+import {
+  Florence2ForConditionalGeneration,
+  AutoProcessor,
+  AutoTokenizer,
+  RawImage
+} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1";
+
+
+const video =
+  document.getElementById("video");
+
+const botonCamara =
+  document.getElementById("camara");
+
+const botonAnalizar =
+  document.getElementById("analizar");
+
+const estado =
+  document.getElementById("estado");
+
+const resultado =
+  document.getElementById("resultado");
+
+
+let stream = null;
+let modelo = null;
+let processor = null;
+let tokenizer = null;
+
+
+/* =========================
+   🧠 CARGAR MODELO
+========================= */
+
+async function cargarModelo() {
+
+  try {
+
+    estado.textContent =
+      "🧠 Descargando modelo de visión...";
+
+    const modelId =
+      "onnx-community/Florence-2-base-ft";
+
+
+    modelo =
+      await Florence2ForConditionalGeneration
+        .from_pretrained(
+          modelId,
+          {
+            dtype: {
+              embed_tokens: "fp16",
+              vision_encoder: "fp16",
+              encoder_model: "q4",
+              decoder_model_merged: "q4"
+            },
+
+            device: "webgpu"
+          }
+        );
+
+
+    processor =
+      await AutoProcessor
+        .from_pretrained(modelId);
+
+
+    tokenizer =
+      await AutoTokenizer
+        .from_pretrained(modelId);
+
+
+    estado.textContent =
+      "🟢 Modelo listo";
+
+  }
+
+  catch(error) {
+
+    console.error(error);
+
+    estado.textContent =
+      "❌ No se pudo cargar el modelo";
+
+    resultado.textContent =
+      "Error: " + error.message;
+  }
+
+}
+
+
+/* =========================
+   📷 CÁMARA
+========================= */
+
+botonCamara.onclick =
+  async () => {
+
+    try {
+
+      stream =
+        await navigator.mediaDevices
+          .getUserMedia({
+            video: {
+              facingMode: "environment"
+            },
+            audio: false
+          });
+
+      video.srcObject = stream;
+
+      estado.textContent =
+        "🟢 Cámara encendida";
+
+    }
+
+    catch(error) {
+
+      estado.textContent =
+        "❌ No se pudo acceder a la cámara";
+
+      console.error(error);
+
+    }
+
+  };
+
+
+/* =========================
+   👁️ ANALIZAR
+========================= */
+
+botonAnalizar.onclick =
+  async () => {
+
+    if (!modelo) {
+
+      resultado.textContent =
+        "⏳ El modelo todavía se está cargando.";
+
+      return;
+
+    }
+
+    if (!stream) {
+
+      resultado.textContent =
+        "📷 Primero enciende la cámara.";
+
+      return;
+
+    }
+
+
+    try {
+
+      botonAnalizar.disabled = true;
+
+      estado.textContent =
+        "👁️ Analizando...";
+
+
+      /*
+        Capturamos el fotograma actual
+        de la cámara.
+      */
+
+      const canvas =
+        document.createElement("canvas");
+
+      canvas.width =
+        video.videoWidth;
+
+      canvas.height =
+        video.videoHeight;
+
+
+      const ctx =
+        canvas.getContext("2d");
+
+      ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+
+      /*
+        Convertimos el fotograma
+        en una imagen para el modelo.
+      */
+
+      const blob =
+        await new Promise(resolve =>
+          canvas.toBlob(
+            resolve,
+            "image/jpeg",
+            0.8
+          )
+        );
+
+
+      const image =
+        await RawImage.fromBlob(blob);
+
+
+      /*
+        Pedimos una descripción
+        detallada.
+      */
+
+      const task =
+        "<MORE_DETAILED_CAPTION>";
+
+
+      const prompts =
+        processor.construct_prompts(task);
+
+
+      const textInputs =
+        tokenizer(prompts);
+
+
+      const visionInputs =
+        await processor(image);
+
+
+      const generatedIds =
+        await modelo.generate({
+          ...textInputs,
+          ...visionInputs,
+          max_new_tokens: 100
+        });
+
+
+      const generatedText =
+        tokenizer.batch_decode(
+          generatedIds,
+          {
+            skip_special_tokens: false
+          }
+        )[0];
+
+
+      const respuesta =
+        processor.post_process_generation(
+          generatedText,
+          task,
+          image.size
+        );
+
+
+      resultado.textContent =
+        respuesta[task];
+
+
+      estado.textContent =
+        "🟢 Análisis terminado";
+
+    }
+
+    catch(error) {
+
+      console.error(error);
+
+      estado.textContent =
+        "❌ Error al analizar";
+
+      resultado.textContent =
+        error.message;
+
+    }
+
+    finally {
+
+      botonAnalizar.disabled = false;
+
+    }
+
+  };
+
+
+/* INICIAR */
+
+cargarModelo();
+
+</script>
+
+</body>
+  </html>
