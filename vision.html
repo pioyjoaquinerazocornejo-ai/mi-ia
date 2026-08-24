@@ -1,371 +1,544 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prueba de visión IA</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
-  <style>
-    body {
-      background: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
+<title>Mi IA - Visión y Voz</title>
 
-    video {
-      width: 95%;
-      max-width: 600px;
-      border-radius: 18px;
-      margin-top: 15px;
-    }
+<style>
+body{
+  margin:0;
+  background:#111;
+  color:white;
+  font-family:Arial,sans-serif;
+  text-align:center;
+}
 
-    button {
-      padding: 15px 20px;
-      margin: 10px;
-      border: 0;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: bold;
-    }
+h1{
+  margin:18px;
+}
 
-    #camara {
-      background: #00c853;
-      color: white;
-    }
+#zona{
+  position:relative;
+  width:95%;
+  max-width:700px;
+  margin:auto;
+}
 
-    #analizar {
-      background: #2979ff;
-      color: white;
-    }
+video{
+  width:100%;
+  border-radius:20px;
+  background:#000;
+}
 
-    #estado {
-      margin: 20px;
-      font-size: 17px;
-    }
+#estado{
+  font-size:18px;
+  margin:15px;
+}
 
-    #resultado {
-      background: #222;
-      border-radius: 15px;
-      padding: 18px;
-      margin-top: 20px;
-      line-height: 1.5;
-    }
-  </style>
+#resultado{
+  margin:15px;
+  padding:18px;
+  background:#222;
+  border-radius:15px;
+  min-height:30px;
+}
+
+button{
+  padding:14px 20px;
+  margin:6px;
+  border:0;
+  border-radius:12px;
+  font-size:16px;
+  font-weight:bold;
+}
+
+#encender{
+  background:#00c853;
+  color:white;
+}
+
+#apagar{
+  background:#d50000;
+  color:white;
+}
+</style>
 </head>
 
 <body>
 
-<h1>🤖 Visión IA</h1>
+<h1>🤖 Mi IA</h1>
 
-<p id="estado">🧠 Preparando modelo...</p>
-
-<video id="video" autoplay playsinline></video>
-
-<br>
-
-<button id="camara">
-📷 Encender cámara
-</button>
-
-<button id="analizar">
-👁️ ¿Qué ves?
-</button>
-
-<div id="resultado">
-Aquí aparecerá la descripción.
+<div id="zona">
+  <video id="video" autoplay playsinline muted></video>
 </div>
 
-<script type="module">
+<button id="encender">📷 Encender cámara</button>
+<button id="apagar">⛔ Apagar cámara</button>
 
-import {
-  Florence2ForConditionalGeneration,
-  AutoProcessor,
-  AutoTokenizer,
-  RawImage
-} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1";
+<div id="estado">🧠 Preparando...</div>
 
+<div id="resultado">
+🎤 Di algo...
+</div>
+
+<script>
 
 const video =
-  document.getElementById("video");
-
-const botonCamara =
-  document.getElementById("camara");
-
-const botonAnalizar =
-  document.getElementById("analizar");
+document.getElementById("video");
 
 const estado =
-  document.getElementById("estado");
+document.getElementById("estado");
 
 const resultado =
-  document.getElementById("resultado");
+document.getElementById("resultado");
 
+const encender =
+document.getElementById("encender");
+
+const apagar =
+document.getElementById("apagar");
 
 let stream = null;
-let modelo = null;
-let processor = null;
-let tokenizer = null;
-
-
-/* =========================
-   🧠 CARGAR MODELO
-========================= */
-
-async function cargarModelo() {
-
-  try {
-
-    estado.textContent =
-      "🧠 Descargando modelo de visión...";
-
-    const modelId =
-      "onnx-community/Florence-2-base-ft";
-
-
-    modelo =
-      await Florence2ForConditionalGeneration
-        .from_pretrained(
-          modelId,
-          {
-            dtype: {
-              embed_tokens: "fp16",
-              vision_encoder: "fp16",
-              encoder_model: "q4",
-              decoder_model_merged: "q4"
-            },
-
-            device: "webgpu"
-          }
-        );
-
-
-    processor =
-      await AutoProcessor
-        .from_pretrained(modelId);
-
-
-    tokenizer =
-      await AutoTokenizer
-        .from_pretrained(modelId);
-
-
-    estado.textContent =
-      "🟢 Modelo listo";
-
-  }
-
-  catch(error) {
-
-    console.error(error);
-
-    estado.textContent =
-      "❌ No se pudo cargar el modelo";
-
-    resultado.textContent =
-      "Error: " + error.message;
-  }
-
-}
+let reconocimiento = null;
+let temporizador = null;
+let hablando = false;
 
 
 /* =========================
    📷 CÁMARA
 ========================= */
 
-botonCamara.onclick =
-  async () => {
+async function encenderCamara(tipo="environment"){
 
-    try {
+  try{
 
-      stream =
-        await navigator.mediaDevices
-          .getUserMedia({
-            video: {
-              facingMode: "environment"
-            },
-            audio: false
-          });
-
-      video.srcObject = stream;
-
-      estado.textContent =
-        "🟢 Cámara encendida";
-
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
     }
 
-    catch(error) {
+    stream =
+      await navigator.mediaDevices.getUserMedia({
 
-      estado.textContent =
-        "❌ No se pudo acceder a la cámara";
+        video:{
+          facingMode:tipo
+        },
 
-      console.error(error);
+        audio:false
 
-    }
+      });
 
-  };
+    video.srcObject=stream;
+
+    estado.textContent=
+      tipo==="user"
+      ? "🟢 Cámara frontal"
+      : "🟢 Cámara trasera";
+
+  }
+
+  catch(error){
+
+    estado.textContent=
+      "❌ No puedo acceder a la cámara";
+
+    console.error(error);
+
+  }
+
+}
+
+
+function apagarCamara(){
+
+  if(stream){
+
+    stream.getTracks()
+      .forEach(t=>t.stop());
+
+    stream=null;
+
+  }
+
+  video.srcObject=null;
+
+  estado.textContent=
+    "🔴 Cámara apagada";
+
+}
 
 
 /* =========================
-   👁️ ANALIZAR
+   🔊 VOZ DE LA IA
 ========================= */
 
-botonAnalizar.onclick =
-  async () => {
+function hablar(mensaje){
 
-    if (!modelo) {
+  /*
+    Si la IA estaba hablando,
+    la detenemos.
+  */
 
-      resultado.textContent =
-        "⏳ El modelo todavía se está cargando.";
+  speechSynthesis.cancel();
 
-      return;
+  hablando=true;
+
+  resultado.textContent=
+    "🤖 "+mensaje;
+
+  const voz =
+    new SpeechSynthesisUtterance(mensaje);
+
+  voz.lang="es-ES";
+  voz.rate=1;
+  voz.pitch=1;
+  voz.volume=1;
+
+  voz.onend=()=>{
+
+    hablando=false;
+
+    iniciarEscucha();
+
+  };
+
+  speechSynthesis.speak(voz);
+
+}
+
+
+/* =========================
+   🎤 ESCUCHAR
+========================= */
+
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+
+function iniciarEscucha(){
+
+  if(!reconocimiento) return;
+
+  try{
+    reconocimiento.start();
+  }catch(e){}
+
+}
+
+
+if(SpeechRecognition){
+
+  reconocimiento =
+    new SpeechRecognition();
+
+  reconocimiento.lang="es-ES";
+
+  reconocimiento.continuous=true;
+
+  reconocimiento.interimResults=true;
+
+
+  reconocimiento.onstart=()=>{
+
+    estado.textContent=
+      "🎤 Escuchando...";
+
+  };
+
+
+  reconocimiento.onresult=(event)=>{
+
+    /*
+      En cuanto el usuario habla,
+      la IA se calla.
+    */
+
+    if(speechSynthesis.speaking){
+
+      speechSynthesis.cancel();
 
     }
 
-    if (!stream) {
+    hablando=false;
 
-      resultado.textContent =
-        "📷 Primero enciende la cámara.";
 
-      return;
+    let frase="";
+
+    for(
+      let i=event.resultIndex;
+      i<event.results.length;
+      i++
+    ){
+
+      frase +=
+        event.results[i][0].transcript;
 
     }
 
 
-    try {
-
-      botonAnalizar.disabled = true;
-
-      estado.textContent =
-        "👁️ Analizando...";
+    resultado.textContent=
+      "👤 "+frase;
 
 
-      /*
-        Capturamos el fotograma actual
-        de la cámara.
-      */
+    /*
+      Cada nueva palabra reinicia
+      el temporizador.
 
-      const canvas =
-        document.createElement("canvas");
+      Cuando pasan 1 segundo
+      sin hablar, procesamos.
+    */
 
-      canvas.width =
-        video.videoWidth;
+    clearTimeout(temporizador);
 
-      canvas.height =
-        video.videoHeight;
+    temporizador =
+      setTimeout(()=>{
+
+        procesar(frase);
+
+      },1000);
+
+  };
 
 
-      const ctx =
-        canvas.getContext("2d");
+  reconocimiento.onerror=(event)=>{
 
-      ctx.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
+    console.log(
+      "Reconocimiento:",
+      event.error
+    );
+
+  };
+
+
+  reconocimiento.onend=()=>{
+
+    if(!hablando){
+
+      setTimeout(
+        iniciarEscucha,
+        300
       );
-
-
-      /*
-        Convertimos el fotograma
-        en una imagen para el modelo.
-      */
-
-      const blob =
-        await new Promise(resolve =>
-          canvas.toBlob(
-            resolve,
-            "image/jpeg",
-            0.8
-          )
-        );
-
-
-      const image =
-        await RawImage.fromBlob(blob);
-
-
-      /*
-        Pedimos una descripción
-        detallada.
-      */
-
-      const task =
-        "<MORE_DETAILED_CAPTION>";
-
-
-      const prompts =
-        processor.construct_prompts(task);
-
-
-      const textInputs =
-        tokenizer(prompts);
-
-
-      const visionInputs =
-        await processor(image);
-
-
-      const generatedIds =
-        await modelo.generate({
-          ...textInputs,
-          ...visionInputs,
-          max_new_tokens: 100
-        });
-
-
-      const generatedText =
-        tokenizer.batch_decode(
-          generatedIds,
-          {
-            skip_special_tokens: false
-          }
-        )[0];
-
-
-      const respuesta =
-        processor.post_process_generation(
-          generatedText,
-          task,
-          image.size
-        );
-
-
-      resultado.textContent =
-        respuesta[task];
-
-
-      estado.textContent =
-        "🟢 Análisis terminado";
-
-    }
-
-    catch(error) {
-
-      console.error(error);
-
-      estado.textContent =
-        "❌ Error al analizar";
-
-      resultado.textContent =
-        error.message;
-
-    }
-
-    finally {
-
-      botonAnalizar.disabled = false;
 
     }
 
   };
 
 
-/* INICIAR */
+}else{
 
-cargarModelo();
+  estado.textContent=
+    "❌ Este navegador no permite reconocimiento de voz";
+
+}
+
+
+/* =========================
+   🧠 PROCESAR COMANDOS
+========================= */
+
+function procesar(frase){
+
+  frase =
+    frase.toLowerCase()
+    .trim();
+
+
+  /* 📷 ENCENDER */
+
+  if(
+    frase.includes("prende la cámara") ||
+    frase.includes("enciende la cámara") ||
+    frase.includes("activa la cámara") ||
+    frase.includes("prende cámara")
+  ){
+
+    encenderCamara("environment");
+
+    hablar(
+      "He encendido la cámara."
+    );
+
+    return;
+  }
+
+
+  /* ⛔ APAGAR */
+
+  if(
+    frase.includes("apaga la cámara") ||
+    frase.includes("apagar la cámara") ||
+    frase.includes("desactiva la cámara")
+  ){
+
+    apagarCamara();
+
+    hablar(
+      "He apagado la cámara."
+    );
+
+    return;
+  }
+
+
+  /* 🤳 FRONTAL */
+
+  if(
+    frase.includes("cámara frontal") ||
+    frase.includes("camara frontal")
+  ){
+
+    encenderCamara("user");
+
+    hablar(
+      "He cambiado a la cámara frontal."
+    );
+
+    return;
+  }
+
+
+  /* 📷 TRASERA */
+
+  if(
+    frase.includes("cámara trasera") ||
+    frase.includes("camara trasera") ||
+    frase.includes("cámara de atrás") ||
+    frase.includes("camara de atras")
+  ){
+
+    encenderCamara("environment");
+
+    hablar(
+      "He cambiado a la cámara trasera."
+    );
+
+    return;
+  }
+
+
+  /* 👁️ PREGUNTAS SOBRE VISIÓN */
+
+  if(
+    frase.includes("qué ves") ||
+    frase.includes("que ves") ||
+    frase.includes("qué hay delante") ||
+    frase.includes("que hay delante") ||
+    frase.includes("qué tengo delante") ||
+    frase.includes("que tengo delante") ||
+    frase.includes("describe lo que ves") ||
+    frase.includes("describe lo que estás viendo") ||
+    frase.includes("describe lo que estas viendo") ||
+    frase.includes("qué hay en la cámara") ||
+    frase.includes("que hay en la camara")
+  ){
+
+    analizarImagen(frase);
+
+    return;
+  }
+
+
+  /*
+    De momento respondemos que
+    hemos escuchado.
+
+    Después conectaremos aquí
+    el cerebro de IA.
+  */
+
+  hablar(
+    "Te he escuchado. La parte de conversación inteligente la añadiremos después."
+  );
+
+}
+
+
+/* =========================
+   👁️ ANALIZAR CÁMARA
+========================= */
+
+async function analizarImagen(pregunta){
+
+  if(!stream){
+
+    hablar(
+      "La cámara está apagada."
+    );
+
+    return;
+  }
+
+
+  /*
+    Por ahora comprobamos que
+    podemos capturar la imagen.
+
+    El modelo visual se conectará
+    en el siguiente paso.
+  */
+
+  const canvas =
+    document.createElement("canvas");
+
+  canvas.width=
+    video.videoWidth;
+
+  canvas.height=
+    video.videoHeight;
+
+  const ctx=
+    canvas.getContext("2d");
+
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+
+  estado.textContent=
+    "👁️ Analizando la cámara...";
+
+
+  /*
+    DEMOSTRACIÓN TEMPORAL.
+
+    Aquí conectaremos el modelo
+    visual local.
+  */
+
+  setTimeout(()=>{
+
+    hablar(
+      "Ya tengo la imagen. Ahora conectaremos mi modelo de visión para poder describir exactamente lo que estoy viendo."
+    );
+
+  },500);
+
+}
+
+
+/* =========================
+   BOTONES
+========================= */
+
+encender.onclick=
+  ()=>encenderCamara();
+
+apagar.onclick=
+  apagarCamara;
+
+
+/* =========================
+   INICIO
+========================= */
+
+estado.textContent=
+  "🟢 Lista. Pulsa Encender cámara y habla.";
 
 </script>
 
