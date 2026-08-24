@@ -4,10 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Mi IA</title>
+<title>Mi IA - Visión</title>
 
 <style>
-
 body {
     margin: 0;
     background: #111;
@@ -17,14 +16,30 @@ body {
 }
 
 h1 {
-    margin: 20px;
+    margin: 15px;
+}
+
+#contenedor {
+    position: relative;
+    width: 95%;
+    max-width: 700px;
+    margin: auto;
 }
 
 video {
-    width: 95%;
-    max-width: 600px;
+    width: 100%;
     border-radius: 20px;
     background: black;
+    display: block;
+}
+
+canvas {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
 }
 
 button {
@@ -47,374 +62,358 @@ button {
 }
 
 #estado {
-    font-size: 18px;
-    margin: 15px;
+    font-size: 17px;
 }
 
-#texto {
-    margin: 20px;
+#objetos {
+    margin: 15px;
     padding: 15px;
     background: #222;
     border-radius: 15px;
     min-height: 30px;
 }
-
 </style>
+
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+
+<!-- COCO-SSD -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
 </head>
 
 <body>
 
 <h1>🤖 Mi IA</h1>
 
-<video id="camara" autoplay playsinline></video>
+<div id="contenedor">
+
+    <video id="camara" autoplay playsinline muted></video>
+
+    <canvas id="canvas"></canvas>
+
+</div>
 
 <br>
 
-<button id="activar">📷 Activar cámara</button>
-<button id="apagar">⛔ Apagar cámara</button>
+<button id="activar">
+📷 Activar cámara
+</button>
 
-<p id="estado">🔴 Cámara apagada</p>
+<button id="apagar">
+⛔ Apagar
+</button>
 
-<div id="texto">
-Estoy esperando que hables...
+<p id="estado">
+🧠 Cargando visión...
+</p>
+
+<div id="objetos">
+Esperando cámara...
 </div>
 
 
 <script>
 
-const video = document.getElementById("camara");
-const activar = document.getElementById("activar");
-const apagar = document.getElementById("apagar");
-const estado = document.getElementById("estado");
-const texto = document.getElementById("texto");
+const video =
+document.getElementById("camara");
+
+const canvas =
+document.getElementById("canvas");
+
+const ctx =
+canvas.getContext("2d");
+
+const activar =
+document.getElementById("activar");
+
+const apagar =
+document.getElementById("apagar");
+
+const estado =
+document.getElementById("estado");
+
+const objetos =
+document.getElementById("objetos");
+
 
 let stream = null;
-let reconocimiento = null;
-let temporizador = null;
-let hablando = false;
+
+let modelo = null;
 
 let camaraActual = "environment";
 
+let hablando = false;
 
-/* =========================
-   📷 CÁMARA
-========================= */
+
+/* ==========================
+   🧠 CARGAR MODELO
+========================== */
+
+async function cargarModelo() {
+
+    estado.textContent =
+        "🧠 Cargando visión...";
+
+    try {
+
+        modelo =
+            await cocoSsd.load();
+
+        estado.textContent =
+            "🟢 Visión preparada";
+
+    }
+
+    catch(error) {
+
+        estado.textContent =
+            "❌ No se pudo cargar la visión";
+
+        console.error(error);
+
+    }
+
+}
+
+cargarModelo();
+
+
+/* ==========================
+   📷 ENCENDER CÁMARA
+========================== */
 
 async function encenderCamara(tipo = camaraActual) {
 
     try {
 
         if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+
+            stream
+            .getTracks()
+            .forEach(track => track.stop());
+
         }
 
         camaraActual = tipo;
 
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream =
+            await navigator.mediaDevices.getUserMedia({
 
-            video: {
-                facingMode: camaraActual
-            },
+                video: {
+                    facingMode: camaraActual
+                },
 
-            audio: false
+                audio: false
 
-        });
+            });
 
         video.srcObject = stream;
 
+        video.onloadeddata = () => {
+
+            canvas.width =
+                video.videoWidth;
+
+            canvas.height =
+                video.videoHeight;
+
+            detectar();
+
+        };
+
         estado.textContent =
-            camaraActual === "user"
-            ? "🟢 Cámara frontal activada"
-            : "🟢 Cámara trasera activada";
+            "🟢 Cámara activada";
 
     }
 
-    catch (error) {
+    catch(error) {
 
         estado.textContent =
-            "❌ No pude acceder a la cámara";
+            "❌ No se pudo acceder a la cámara";
 
         console.error(error);
+
     }
+
 }
 
+
+/* ==========================
+   ⛔ APAGAR
+========================== */
 
 function apagarCamara() {
 
     if (stream) {
 
-        stream.getTracks().forEach(track => track.stop());
+        stream
+        .getTracks()
+        .forEach(track => track.stop());
 
         stream = null;
-        video.srcObject = null;
-    }
-
-    estado.textContent = "🔴 Cámara apagada";
-}
-
-
-/* =========================
-   🎤 VOZ
-========================= */
-
-const SpeechRecognition =
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition;
-
-
-if (SpeechRecognition) {
-
-    reconocimiento = new SpeechRecognition();
-
-    reconocimiento.lang = "es-ES";
-
-    reconocimiento.continuous = true;
-
-    reconocimiento.interimResults = true;
-
-
-    reconocimiento.onstart = () => {
-
-        if (!hablando) {
-
-            estado.textContent =
-                "🎤 Escuchando...";
-        }
-    };
-
-
-    reconocimiento.onresult = (event) => {
-
-        if (hablando) return;
-
-        let textoCompleto = "";
-
-        for (
-            let i = event.resultIndex;
-            i < event.results.length;
-            i++
-        ) {
-
-            textoCompleto +=
-                event.results[i][0].transcript;
-        }
-
-
-        texto.textContent =
-            "👤 Tú: " + textoCompleto;
-
-
-        /*
-          Reiniciamos el temporizador cada vez
-          que detectamos voz.
-        */
-
-        clearTimeout(temporizador);
-
-
-        temporizador = setTimeout(() => {
-
-            procesarOrden(textoCompleto);
-
-        }, 3000);
-
-    };
-
-
-    reconocimiento.onerror = (event) => {
-
-        console.log(
-            "Error de reconocimiento:",
-            event.error
-        );
-
-    };
-
-
-    reconocimiento.onend = () => {
-
-        /*
-          Si la IA no está hablando,
-          volvemos a escuchar.
-        */
-
-        if (!hablando) {
-
-            try {
-
-                reconocimiento.start();
-
-            }
-
-            catch (e) {}
-
-        }
-
-    };
-
-
-    try {
-
-        reconocimiento.start();
 
     }
 
-    catch (e) {}
-
-}
-
-
-/* =========================
-   🧠 PROCESAR LO QUE DICES
-========================= */
-
-function procesarOrden(frase) {
-
-    frase = frase.toLowerCase().trim();
-
-
-    /* 📷 ENCENDER CÁMARA */
-
-    if (
-        frase.includes("prende la cámara") ||
-        frase.includes("enciende la cámara") ||
-        frase.includes("activa la cámara") ||
-        frase.includes("enciende cámara")
-    ) {
-
-        encenderCamara("environment");
-
-        hablar(
-            "He encendido la cámara."
-        );
-
-        return;
-    }
-
-
-    /* 📷 APAGAR CÁMARA */
-
-    if (
-        frase.includes("apaga la cámara") ||
-        frase.includes("desactiva la cámara") ||
-        frase.includes("apagar cámara")
-    ) {
-
-        apagarCamara();
-
-        hablar(
-            "He apagado la cámara."
-        );
-
-        return;
-    }
-
-
-    /* 🤳 CÁMARA FRONTAL */
-
-    if (
-        frase.includes("cámara frontal") ||
-        frase.includes("camara frontal") ||
-        frase.includes("mira la cámara frontal")
-    ) {
-
-        encenderCamara("user");
-
-        hablar(
-            "He cambiado a la cámara frontal."
-        );
-
-        return;
-    }
-
-
-    /* 📷 CÁMARA TRASERA */
-
-    if (
-        frase.includes("cámara trasera") ||
-        frase.includes("camara trasera") ||
-        frase.includes("cámara de atrás") ||
-        frase.includes("camara de atras")
-    ) {
-
-        encenderCamara("environment");
-
-        hablar(
-            "He cambiado a la cámara trasera."
-        );
-
-        return;
-    }
-
-
-    /*
-      👁️ VISIÓN
-
-      Aquí después conectaremos
-      el modelo de IA que analizará
-      la imagen de la cámara.
-    */
-
-    if (
-        frase.includes("qué ves") ||
-        frase.includes("que ves") ||
-        frase.includes("qué hay") ||
-        frase.includes("que hay") ||
-        frase.includes("describe lo que ves") ||
-        frase.includes("mira esto")
-    ) {
-
-        hablar(
-            "Estoy preparada para analizar la cámara. En la siguiente versión conectaré mi sistema de visión."
-        );
-
-        return;
-    }
-
-
-    /*
-      💬 RESPUESTA NORMAL
-    */
-
-    hablar(
-        "Te he escuchado. Todavía estoy conectando mi cerebro de inteligencia artificial."
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
     );
 
+    objetos.textContent =
+        "Cámara apagada";
+
+    estado.textContent =
+        "🔴 Cámara apagada";
+
 }
 
 
-/* =========================
-   🔊 HABLAR
-========================= */
+/* ==========================
+   👁️ DETECCIÓN EN VIVO
+========================== */
 
-function hablar(mensaje) {
+async function detectar() {
 
-    hablando = true;
+    if (
+        !modelo ||
+        !stream ||
+        video.readyState < 2
+    ) {
 
-    /*
-      Detenemos temporalmente
-      el reconocimiento para que
-      la IA no se escuche a sí misma.
-    */
+        requestAnimationFrame(detectar);
 
-    if (reconocimiento) {
-
-        try {
-
-            reconocimiento.stop();
-
-        }
-
-        catch (e) {}
+        return;
 
     }
 
+
+    const predicciones =
+        await modelo.detect(
+            video,
+            20,
+            0.55
+        );
+
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    const nombres = [];
+
+
+    predicciones.forEach(objeto => {
+
+        const [
+            x,
+            y,
+            ancho,
+            alto
+        ] = objeto.bbox;
+
+
+        /* CUADRO */
+
+        ctx.strokeStyle =
+            "#00ff66";
+
+        ctx.lineWidth = 4;
+
+        ctx.strokeRect(
+            x,
+            y,
+            ancho,
+            alto
+        );
+
+
+        /* TEXTO */
+
+        const porcentaje =
+            Math.round(
+                objeto.score * 100
+            );
+
+
+        const etiqueta =
+            objeto.class +
+            " " +
+            porcentaje +
+            "%";
+
+
+        ctx.fillStyle =
+            "#00ff66";
+
+        ctx.font =
+            "18px Arial";
+
+        ctx.fillText(
+            etiqueta,
+            x,
+            Math.max(
+                20,
+                y - 5
+            )
+        );
+
+
+        nombres.push(
+            objeto.class
+        );
+
+    });
+
+
+    if (nombres.length > 0) {
+
+        objetos.textContent =
+            "👁️ Veo: " +
+            [...new Set(nombres)]
+            .join(", ");
+
+    }
+
+    else {
+
+        objetos.textContent =
+            "👁️ No detecto objetos";
+
+    }
+
+
+    requestAnimationFrame(detectar);
+
+}
+
+
+/* ==========================
+   🔊 HABLAR
+========================== */
+
+function hablar(texto) {
+
+    /*
+      Si el usuario empieza a hablar,
+      esta función será cancelada.
+    */
 
     speechSynthesis.cancel();
 
+    hablando = true;
+
 
     const voz =
-        new SpeechSynthesisUtterance(mensaje);
+        new SpeechSynthesisUtterance(
+            texto
+        );
 
     voz.lang = "es-ES";
 
@@ -429,28 +428,254 @@ function hablar(mensaje) {
 
         hablando = false;
 
-        texto.textContent =
-            "🤖 IA: " + mensaje;
-
-
-        setTimeout(() => {
-
-            try {
-
-                reconocimiento.start();
-
-            }
-
-            catch (e) {}
-
-        }, 300);
-
     };
 
 
     speechSynthesis.speak(voz);
 
 }
+
+
+/* ==========================
+   🎤 CUANDO EL USUARIO HABLA
+========================== */
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+
+let reconocimiento = null;
+
+
+if (SpeechRecognition) {
+
+    reconocimiento =
+        new SpeechRecognition();
+
+    reconocimiento.lang =
+        "es-ES";
+
+    reconocimiento.continuous =
+        true;
+
+    reconocimiento.interimResults =
+        true;
+
+
+    reconocimiento.onstart = () => {
+
+        estado.textContent =
+            "🎤 Escuchando...";
+
+    };
+
+
+    reconocimiento.onresult =
+        (event) => {
+
+            /*
+              EN CUANTO DETECTAMOS
+              QUE EL USUARIO HABLA:
+
+              🔇 paramos la voz de la IA
+            */
+
+            if (speechSynthesis.speaking) {
+
+                speechSynthesis.cancel();
+
+            }
+
+            hablando = false;
+
+
+            let frase = "";
+
+            for (
+                let i = event.resultIndex;
+                i < event.results.length;
+                i++
+            ) {
+
+                frase +=
+                    event.results[i][0]
+                    .transcript;
+
+            }
+
+
+            procesarComando(frase);
+
+        };
+
+
+    reconocimiento.onerror =
+        (event) => {
+
+            console.log(
+                "Voz:",
+                event.error
+            );
+
+        };
+
+
+    reconocimiento.onend = () => {
+
+        /*
+          Volver a escuchar automáticamente.
+        */
+
+        try {
+
+            reconocimiento.start();
+
+        }
+
+        catch(e) {}
+
+    };
+
+
+    try {
+
+        reconocimiento.start();
+
+    }
+
+    catch(e) {}
+
+}
+
+
+/* ==========================
+   🗣️ COMANDOS
+========================== */
+
+function procesarComando(frase) {
+
+    frase =
+        frase.toLowerCase();
+
+
+    /* CÁMARA */
+
+    if (
+        frase.includes(
+            "prende la cámara"
+        ) ||
+        frase.includes(
+            "enciende la cámara"
+        )
+    ) {
+
+        encenderCamara(
+            "environment"
+        );
+
+        hablar(
+            "He encendido la cámara."
+        );
+
+        return;
+
+    }
+
+
+    /* APAGAR */
+
+    if (
+        frase.includes(
+            "apaga la cámara"
+        ) ||
+        frase.includes(
+            "apagar la cámara"
+        )
+    ) {
+
+        apagarCamara();
+
+        hablar(
+            "He apagado la cámara."
+        );
+
+        return;
+
+    }
+
+
+    /* FRONTAL */
+
+    if (
+        frase.includes(
+            "cámara frontal"
+        ) ||
+        frase.includes(
+            "camara frontal"
+        )
+    ) {
+
+        encenderCamara("user");
+
+        hablar(
+            "He cambiado a la cámara frontal."
+        );
+
+        return;
+
+    }
+
+
+    /* TRASERA */
+
+    if (
+        frase.includes(
+            "cámara trasera"
+        ) ||
+        frase.includes(
+            "camara trasera"
+        )
+    ) {
+
+        encenderCamara(
+            "environment"
+        );
+
+        hablar(
+            "He cambiado a la cámara trasera."
+        );
+
+        return;
+
+    }
+
+
+    /*
+      Si dices cualquier otra cosa,
+      por ahora mostramos lo que dijiste.
+    */
+
+    console.log(
+        "Usuario:",
+        frase
+    );
+
+}
+
+
+/* ==========================
+   BOTONES
+========================== */
+
+activar.onclick =
+    () => encenderCamara(
+        camaraActual
+    );
+
+
+apagar.onclick =
+    apagarCamara;
 
 </script>
 
