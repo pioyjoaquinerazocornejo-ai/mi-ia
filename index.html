@@ -20,11 +20,11 @@ body {
 }
 
 h1 {
-  margin: 18px 0 8px;
+  margin: 20px 0 10px;
 }
 
 #estado {
-  margin: 12px;
+  margin: 15px;
   font-size: 17px;
 }
 
@@ -52,6 +52,7 @@ video {
   min-height: 70px;
   text-align: left;
   line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 button {
@@ -73,6 +74,11 @@ button {
   color: white;
 }
 
+#enviar {
+  background: #2979ff;
+  color: white;
+}
+
 #texto {
   width: 95%;
   max-width: 700px;
@@ -91,15 +97,20 @@ button {
 <h1>🤖 Pío IA</h1>
 
 <div id="estado">
-🔵 Di «enciende la cámara» para comenzar
+🧠 Preparando IA...
 </div>
 
 <div id="zona">
   <video id="video" autoplay playsinline muted></video>
 </div>
 
-<button id="encender">📷 Encender cámara</button>
-<button id="apagar">⛔ Apagar cámara</button>
+<button id="encender">
+📷 Encender cámara
+</button>
+
+<button id="apagar">
+⛔ Apagar cámara
+</button>
 
 <br>
 
@@ -110,31 +121,31 @@ button {
 
 <br>
 
-<button id="enviar">💬 Enviar</button>
+<button id="enviar">
+💬 Enviar
+</button>
 
 <div id="respuesta">
-Estoy esperando...
+Preparando el cerebro...
 </div>
 
 
 <script type="module">
 
-import { pipeline }
-from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
-
-
-/* ==================================
-   ELEMENTOS
-================================== */
-
-const video =
-  document.getElementById("video");
+/*
+=========================================
+  IMPORTANTE
+=========================================
+*/
 
 const estado =
   document.getElementById("estado");
 
 const respuesta =
   document.getElementById("respuesta");
+
+const video =
+  document.getElementById("video");
 
 const texto =
   document.getElementById("texto");
@@ -149,13 +160,9 @@ const apagar =
   document.getElementById("apagar");
 
 
-/* ==================================
-   VARIABLES
-================================== */
+let cerebro = null;
 
 let stream = null;
-
-let cerebro = null;
 
 let reconocimiento = null;
 
@@ -163,54 +170,92 @@ let escuchando = false;
 
 let hablando = false;
 
+let asistenteActivo = false;
+
 let temporizador = null;
 
 let conversacion = [];
 
 
 /*
-  Al principio NO escuchamos.
+=========================================
+  🧠 CARGAR TRANSFORMERS.JS
+=========================================
 */
-let asistenteActivo = false;
 
-
-/* ==================================
-   🧠 CARGAR CEREBRO
-================================== */
-
-async function cargarCerebro() {
+async function iniciarIA() {
 
   try {
 
     estado.textContent =
-      "🧠 Cargando cerebro Q4...";
-
-    cerebro = await pipeline(
-      "text-generation",
-      "onnx-community/Qwen2.5-0.5B-Instruct",
-      {
-        dtype: "q4",
-        device: "webgpu"
-      }
-    );
-
-    estado.textContent =
-      "🟢 Cerebro listo. Di «enciende la cámara».";
+      "🧠 Conectando con el motor de IA...";
 
     respuesta.textContent =
-      "Estoy lista para hablar contigo.";
+      "Cargando Qwen 0.5B Q4...";
 
-  }
 
-  catch (error) {
+    /*
+      Importamos Transformers.js
+      DESDE EL MISMO SCRIPT.
+
+      Si falla, mostraremos el error.
+    */
+
+    const Transformers =
+      await import(
+        "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+      );
+
+
+    const pipeline =
+      Transformers.pipeline;
+
+
+    estado.textContent =
+      "⏳ Descargando el cerebro Q4...";
+
+    respuesta.textContent =
+      "La primera carga puede tardar bastante. No cierres esta página.";
+
+
+    /*
+      Qwen 0.5B Q4 + WebGPU.
+
+      Esta es la configuración
+      documentada por Hugging Face.
+    */
+
+    cerebro =
+      await pipeline(
+
+        "text-generation",
+
+        "onnx-community/Qwen2.5-0.5B-Instruct",
+
+        {
+          dtype: "q4",
+          device: "webgpu"
+        }
+
+      );
+
+
+    estado.textContent =
+      "🟢 Cerebro listo";
+
+    respuesta.textContent =
+      "¡Listo! Puedes escribirme una pregunta.";
+
+
+  } catch (error) {
 
     console.error(error);
 
     estado.textContent =
-      "❌ No se pudo cargar el cerebro.";
+      "❌ Error al cargar la IA";
 
     respuesta.textContent =
-      "Error al cargar el modelo: " +
+      "ERROR:\n\n" +
       error.message;
 
   }
@@ -218,11 +263,15 @@ async function cargarCerebro() {
 }
 
 
-/* ==================================
-   📷 ENCENDER CÁMARA
-================================== */
+/*
+=========================================
+  📷 CÁMARA
+=========================================
+*/
 
-async function encenderCamara(tipo = "environment") {
+async function encenderCamara(
+  tipo = "environment"
+) {
 
   try {
 
@@ -233,6 +282,7 @@ async function encenderCamara(tipo = "environment") {
         .forEach(track => track.stop());
 
     }
+
 
     stream =
       await navigator.mediaDevices
@@ -247,40 +297,36 @@ async function encenderCamara(tipo = "environment") {
         });
 
 
-    video.srcObject = stream;
+    video.srcObject =
+      stream;
 
 
-    asistenteActivo = true;
+    asistenteActivo =
+      true;
 
 
     if (tipo === "user") {
 
       estado.textContent =
-        "🟢 Cámara frontal + IA activas";
+        "🟢 Cámara frontal activa + escuchando";
 
     } else {
 
       estado.textContent =
-        "🟢 Cámara trasera + IA activas";
+        "🟢 Cámara trasera activa + escuchando";
 
     }
 
 
-    /*
-      Empezamos a escuchar
-      solamente ahora.
-    */
-
     iniciarEscucha();
 
-  }
 
-  catch (error) {
+  } catch (error) {
 
     console.error(error);
 
     estado.textContent =
-      "❌ No puedo acceder a la cámara.";
+      "❌ No puedo acceder a la cámara";
 
     hablar(
       "No puedo acceder a la cámara."
@@ -290,10 +336,6 @@ async function encenderCamara(tipo = "environment") {
 
 }
 
-
-/* ==================================
-   ⛔ APAGAR CÁMARA
-================================== */
 
 function apagarCamara() {
 
@@ -307,15 +349,18 @@ function apagarCamara() {
 
   }
 
-  video.srcObject = null;
+
+  video.srcObject =
+    null;
+
 
   /*
-    IMPORTANTE:
-    NO apagamos el asistente.
-    El micrófono sigue funcionando.
+    El micrófono permanece activo.
   */
 
-  asistenteActivo = true;
+  asistenteActivo =
+    true;
+
 
   estado.textContent =
     "🔴 Cámara apagada. Te sigo escuchando.";
@@ -323,22 +368,20 @@ function apagarCamara() {
 }
 
 
-/* ==================================
-   🔊 HABLAR
-================================== */
+/*
+=========================================
+  🔊 VOZ
+=========================================
+*/
 
 function hablar(mensaje) {
-
-  /*
-    Primero apagamos el reconocimiento
-    para que no escuche nuestra voz.
-  */
 
   detenerEscucha();
 
   speechSynthesis.cancel();
 
   hablando = true;
+
 
   respuesta.textContent =
     "🤖 " + mensaje;
@@ -349,36 +392,46 @@ function hablar(mensaje) {
       mensaje
     );
 
-  voz.lang = "es-ES";
 
-  voz.rate = 1;
+  voz.lang =
+    "es-ES";
 
-  voz.pitch = 1;
+  voz.rate =
+    1;
 
-  voz.volume = 1;
+  voz.pitch =
+    1;
 
-
-  voz.onend = function () {
-
-    hablando = false;
-
-
-    setTimeout(
-      iniciarEscucha,
-      500
-    );
-
-  };
+  voz.volume =
+    1;
 
 
-  speechSynthesis.speak(voz);
+  voz.onend =
+    function() {
+
+      hablando = false;
+
+
+      setTimeout(
+        iniciarEscucha,
+        500
+      );
+
+    };
+
+
+  speechSynthesis.speak(
+    voz
+  );
 
 }
 
 
-/* ==================================
-   🎤 RECONOCIMIENTO DE VOZ
-================================== */
+/*
+=========================================
+  🎤 VOZ A TEXTO
+=========================================
+*/
 
 const SpeechRecognition =
   window.SpeechRecognition ||
@@ -390,20 +443,24 @@ if (SpeechRecognition) {
   reconocimiento =
     new SpeechRecognition();
 
+
   reconocimiento.lang =
     "es-ES";
 
+
   reconocimiento.continuous =
     true;
+
 
   reconocimiento.interimResults =
     true;
 
 
   reconocimiento.onstart =
-    function () {
+    function() {
 
-      escuchando = true;
+      escuchando =
+        true;
 
       estado.textContent =
         "🎤 Escuchando...";
@@ -412,12 +469,7 @@ if (SpeechRecognition) {
 
 
   reconocimiento.onresult =
-    function (event) {
-
-      /*
-        Nunca procesamos nuestra
-        propia voz.
-      */
+    function(event) {
 
       if (hablando) {
         return;
@@ -453,21 +505,22 @@ if (SpeechRecognition) {
         "👤 " + frase;
 
 
-      /*
-        Cada nueva palabra reinicia
-        el contador.
-      */
-
       clearTimeout(
         temporizador
       );
 
 
+      /*
+        1 segundo sin hablar.
+      */
+
       temporizador =
         setTimeout(
-          function () {
+          function() {
 
-            procesar(frase);
+            procesar(
+              frase
+            );
 
           },
           1000
@@ -477,10 +530,10 @@ if (SpeechRecognition) {
 
 
   reconocimiento.onerror =
-    function (event) {
+    function(event) {
 
       console.log(
-        "Reconocimiento:",
+        "Voice error:",
         event.error
       );
 
@@ -488,9 +541,10 @@ if (SpeechRecognition) {
 
 
   reconocimiento.onend =
-    function () {
+    function() {
 
-      escuchando = false;
+      escuchando =
+        false;
 
 
       if (
@@ -510,9 +564,11 @@ if (SpeechRecognition) {
 }
 
 
-/* ==================================
-   🎤 INICIAR ESCUCHA
-================================== */
+/*
+=========================================
+  🎤 INICIAR ESCUCHA
+=========================================
+*/
 
 function iniciarEscucha() {
 
@@ -520,13 +576,16 @@ function iniciarEscucha() {
     return;
   }
 
+
   if (!asistenteActivo) {
     return;
   }
 
+
   if (hablando) {
     return;
   }
+
 
   if (escuchando) {
     return;
@@ -537,9 +596,7 @@ function iniciarEscucha() {
 
     reconocimiento.start();
 
-  }
-
-  catch (error) {
+  } catch (error) {
 
     console.log(error);
 
@@ -548,9 +605,11 @@ function iniciarEscucha() {
 }
 
 
-/* ==================================
-   🛑 DETENER ESCUCHA
-================================== */
+/*
+=========================================
+  🛑 DETENER ESCUCHA
+=========================================
+*/
 
 function detenerEscucha() {
 
@@ -563,49 +622,42 @@ function detenerEscucha() {
 
     reconocimiento.stop();
 
-  }
-
-  catch (error) {
+  } catch (error) {
 
     console.log(error);
 
   }
 
 
-  escuchando = false;
+  escuchando =
+    false;
 
 }
 
 
-/* ==================================
-   🧠 PROCESAR FRASE
-================================== */
+/*
+=========================================
+  🧠 PROCESAR LO QUE DICES
+=========================================
+*/
 
 async function procesar(frase) {
 
-  const textoNormalizado =
+  const t =
     frase
       .toLowerCase()
       .trim();
 
 
-  /* ===============================
-     📷 PRENDER CÁMARA
-  =============================== */
+  /*
+    ENCENDER CÁMARA
+  */
 
   if (
-    textoNormalizado.includes(
-      "enciende la cámara"
-    ) ||
-    textoNormalizado.includes(
-      "enciende cámara"
-    ) ||
-    textoNormalizado.includes(
-      "prende la cámara"
-    ) ||
-    textoNormalizado.includes(
-      "prende cámara"
-    )
+    t.includes("enciende la cámara") ||
+    t.includes("enciende cámara") ||
+    t.includes("prende la cámara") ||
+    t.includes("prende cámara")
   ) {
 
     await encenderCamara(
@@ -621,17 +673,13 @@ async function procesar(frase) {
   }
 
 
-  /* ===============================
-     🤳 CÁMARA FRONTAL
-  =============================== */
+  /*
+    CÁMARA FRONTAL
+  */
 
   if (
-    textoNormalizado.includes(
-      "cámara frontal"
-    ) ||
-    textoNormalizado.includes(
-      "camara frontal"
-    )
+    t.includes("cámara frontal") ||
+    t.includes("camara frontal")
   ) {
 
     await encenderCamara(
@@ -647,23 +695,13 @@ async function procesar(frase) {
   }
 
 
-  /* ===============================
-     📷 CÁMARA TRASERA
-  =============================== */
+  /*
+    CÁMARA TRASERA
+  */
 
   if (
-    textoNormalizado.includes(
-      "cámara trasera"
-    ) ||
-    textoNormalizado.includes(
-      "camara trasera"
-    ) ||
-    textoNormalizado.includes(
-      "cámara de atrás"
-    ) ||
-    textoNormalizado.includes(
-      "camara de atras"
-    )
+    t.includes("cámara trasera") ||
+    t.includes("camara trasera")
   ) {
 
     await encenderCamara(
@@ -679,23 +717,15 @@ async function procesar(frase) {
   }
 
 
-  /* ===============================
-     ⛔ APAGAR CÁMARA
-  =============================== */
+  /*
+    APAGAR CÁMARA
+  */
 
   if (
-    textoNormalizado.includes(
-      "apaga la cámara"
-    ) ||
-    textoNormalizado.includes(
-      "apaga cámara"
-    ) ||
-    textoNormalizado.includes(
-      "apagar la cámara"
-    ) ||
-    textoNormalizado.includes(
-      "apagar cámara"
-    )
+    t.includes("apaga la cámara") ||
+    t.includes("apaga cámara") ||
+    t.includes("apagar la cámara") ||
+    t.includes("apagar cámara")
   ) {
 
     apagarCamara();
@@ -709,29 +739,32 @@ async function procesar(frase) {
   }
 
 
-  /* ===============================
-     💬 PREGUNTA AL CEREBRO
-  =============================== */
+  /*
+    TODO LO DEMÁS:
+    VA AL CEREBRO.
+  */
 
-  await preguntarAlCerebro(
+  await preguntarIA(
     frase
   );
 
 }
 
 
-/* ==================================
-   🧠 CONVERSACIÓN
-================================== */
+/*
+=========================================
+  🧠 PREGUNTAR A QWEN
+=========================================
+*/
 
-async function preguntarAlCerebro(
-  preguntaUsuario
+async function preguntarIA(
+  pregunta
 ) {
 
   if (!cerebro) {
 
     hablar(
-      "Todavía estoy cargando mi cerebro. Espera un momento."
+      "Mi cerebro todavía no está listo. Mira el mensaje de la pantalla para ver qué ocurrió."
     );
 
     return;
@@ -743,31 +776,28 @@ async function preguntarAlCerebro(
     "🧠 Pensando...";
 
 
-  /*
-    Guardamos la conversación.
-  */
-
   conversacion.push({
 
     role: "user",
 
     content:
-      preguntaUsuario
+      pregunta
 
   });
 
 
   /*
-    Limitamos el historial para
-    que el móvil no se quede sin memoria.
+    Conservamos las últimas
+    8 intervenciones para ahorrar
+    memoria en el móvil.
   */
 
   if (
-    conversacion.length > 10
+    conversacion.length > 8
   ) {
 
     conversacion =
-      conversacion.slice(-10);
+      conversacion.slice(-8);
 
   }
 
@@ -778,27 +808,7 @@ async function preguntarAlCerebro(
       role: "system",
 
       content:
-        `Eres Pío IA, un asistente inteligente
-        que habla español.
-
-        Responde de forma natural y útil.
-
-        Si el usuario pide una explicación,
-        explica paso a paso.
-
-        Si pregunta programación,
-        puedes enseñar HTML, CSS, JavaScript,
-        Python, C++, Java, Roblox Lua,
-        Unity, GDevelop y otras tecnologías.
-
-        Si pide código, proporciona código
-        y explica cómo utilizarlo.
-
-        No inventes que puedes acceder a Internet
-        o a la cámara si no tienes esa herramienta.
-
-        Responde de manera clara y adecuada
-        a la pregunta del usuario.`
+        "Eres Pío IA. Responde siempre en español. Sé natural, clara y útil. Si el usuario pide que le expliques algo, explica paso a paso. Si pregunta sobre programación, enseña el código y explica cómo funciona. No inventes información."
     },
 
     ...conversacion
@@ -812,21 +822,59 @@ async function preguntarAlCerebro(
       await cerebro(
         mensajes,
         {
-          max_new_tokens: 256,
-
-          temperature: 0.7
+          max_new_tokens: 160
         }
       );
 
 
-    const ultima =
+    const generada =
       salida[0]
-        .generated_text
-        .at(-1);
+        .generated_text;
 
 
-    const respuestaIA =
-      ultima.content;
+    /*
+      Qwen devuelve una conversación.
+      Tomamos el último mensaje.
+    */
+
+    const ultimo =
+      generada[
+        generada.length - 1
+      ];
+
+
+    let respuestaIA = "";
+
+
+    if (
+      ultimo &&
+      typeof ultimo === "object" &&
+      ultimo.content
+    ) {
+
+      respuestaIA =
+        ultimo.content;
+
+    } else {
+
+      respuestaIA =
+        String(
+          ultimo || ""
+        );
+
+    }
+
+
+    respuestaIA =
+      respuestaIA.trim();
+
+
+    if (!respuestaIA) {
+
+      respuestaIA =
+        "No he conseguido generar una respuesta.";
+
+    }
 
 
     conversacion.push({
@@ -847,30 +895,31 @@ async function preguntarAlCerebro(
       respuestaIA
     );
 
-  }
 
-  catch (error) {
+  } catch (error) {
 
     console.error(error);
 
     estado.textContent =
-      "❌ Error del cerebro";
+      "❌ Error al responder";
 
-    hablar(
-      "Ha ocurrido un error al generar la respuesta."
-    );
+    respuesta.textContent =
+      "Error:\n" +
+      error.message;
 
   }
 
 }
 
 
-/* ==================================
-   ✍️ TEXTO
-================================== */
+/*
+=========================================
+  ✍️ TEXTO
+=========================================
+*/
 
 enviar.onclick =
-  async function () {
+  async function() {
 
     const pregunta =
       texto.value.trim();
@@ -881,15 +930,12 @@ enviar.onclick =
     }
 
 
-    /*
-      Activamos el asistente
-      si escribes manualmente.
-    */
-
-    asistenteActivo = true;
+    texto.value =
+      "";
 
 
-    texto.value = "";
+    asistenteActivo =
+      true;
 
 
     await procesar(
@@ -899,13 +945,15 @@ enviar.onclick =
   };
 
 
-/* ==================================
-   ⌨️ ENTER
-================================== */
+/*
+=========================================
+  ENTER
+=========================================
+*/
 
 texto.addEventListener(
   "keydown",
-  function (event) {
+  function(event) {
 
     if (
       event.key === "Enter" &&
@@ -922,12 +970,14 @@ texto.addEventListener(
 );
 
 
-/* ==================================
-   🔘 BOTONES
-================================== */
+/*
+=========================================
+  BOTONES
+=========================================
+*/
 
 encender.onclick =
-  function () {
+  function() {
 
     encenderCamara(
       "environment"
@@ -937,20 +987,22 @@ encender.onclick =
 
 
 apagar.onclick =
-  function () {
+  function() {
 
     apagarCamara();
 
   };
 
 
-/* ==================================
-   🚀 INICIO
-================================== */
+/*
+=========================================
+  🚀 ARRANCAR
+=========================================
+*/
 
-cargarCerebro();
+iniciarIA();
 
 </script>
 
 </body>
-    </html>
+</html>
