@@ -3,91 +3,75 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Pío IA</title>
 
 <style>
-* {
-  box-sizing: border-box;
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:#101010;
+  color:white;
+  font-family:Arial,sans-serif;
+  text-align:center;
 }
 
-body {
-  margin: 0;
-  background: #101010;
-  color: white;
-  font-family: Arial, sans-serif;
-  text-align: center;
+h1{margin:18px 0 8px}
+
+#estado{
+  margin:12px;
+  font-size:17px;
 }
 
-h1 {
-  margin: 20px 0 10px;
+#zona{
+  width:95%;
+  max-width:700px;
+  margin:auto;
 }
 
-#estado {
-  margin: 15px;
-  font-size: 17px;
+video{
+  width:100%;
+  max-height:55vh;
+  background:#000;
+  border-radius:20px;
+  object-fit:cover;
 }
 
-#zona {
-  width: 95%;
-  max-width: 700px;
-  margin: auto;
+#respuesta{
+  width:95%;
+  max-width:700px;
+  margin:15px auto;
+  padding:18px;
+  background:#222;
+  border-radius:16px;
+  min-height:70px;
+  text-align:left;
+  white-space:pre-wrap;
+  line-height:1.5;
 }
 
-video {
-  width: 100%;
-  max-height: 55vh;
-  background: black;
-  border-radius: 20px;
-  object-fit: cover;
+button{
+  border:0;
+  border-radius:12px;
+  padding:13px 18px;
+  margin:5px;
+  font-size:16px;
+  font-weight:bold;
 }
 
-#respuesta {
-  width: 95%;
-  max-width: 700px;
-  margin: 15px auto;
-  padding: 18px;
-  background: #222;
-  border-radius: 16px;
-  min-height: 70px;
-  text-align: left;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
+#encender{background:#00c853;color:white}
+#apagar{background:#d50000;color:white}
+#enviar{background:#2979ff;color:white}
 
-button {
-  border: 0;
-  border-radius: 12px;
-  padding: 13px 18px;
-  margin: 5px;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-#encender {
-  background: #00c853;
-  color: white;
-}
-
-#apagar {
-  background: #d50000;
-  color: white;
-}
-
-#enviar {
-  background: #2979ff;
-  color: white;
-}
-
-#texto {
-  width: 95%;
-  max-width: 700px;
-  height: 70px;
-  margin-top: 10px;
-  border-radius: 12px;
-  border: 0;
-  padding: 12px;
-  font-size: 16px;
+#texto{
+  width:95%;
+  max-width:700px;
+  height:70px;
+  margin-top:10px;
+  border-radius:12px;
+  border:0;
+  padding:12px;
+  font-size:16px;
 }
 </style>
 </head>
@@ -96,637 +80,375 @@ button {
 
 <h1>🤖 Pío IA</h1>
 
-<div id="estado">
-🧠 Preparando IA...
-</div>
+<div id="estado">🧠 Preparando cerebro...</div>
 
 <div id="zona">
   <video id="video" autoplay playsinline muted></video>
 </div>
 
-<button id="encender">
-📷 Encender cámara
-</button>
-
-<button id="apagar">
-⛔ Apagar cámara
-</button>
+<button id="encender">📷 Encender cámara</button>
+<button id="apagar">⛔ Apagar cámara</button>
 
 <br>
 
-<textarea
-  id="texto"
-  placeholder="También puedes escribir aquí..."
-></textarea>
+<textarea id="texto" placeholder="También puedes escribir aquí..."></textarea>
 
 <br>
 
-<button id="enviar">
-💬 Enviar
-</button>
+<button id="enviar">💬 Enviar</button>
 
-<div id="respuesta">
-Preparando el cerebro...
-</div>
-
+<div id="respuesta">Preparando la IA...</div>
 
 <script type="module">
 
-/*
-=========================================
-  IMPORTANTE
-=========================================
-*/
+/* ================================
+   ELEMENTOS
+================================ */
 
-const estado =
-  document.getElementById("estado");
-
-const respuesta =
-  document.getElementById("respuesta");
-
-const video =
-  document.getElementById("video");
-
-const texto =
-  document.getElementById("texto");
-
-const enviar =
-  document.getElementById("enviar");
-
-const encender =
-  document.getElementById("encender");
-
-const apagar =
-  document.getElementById("apagar");
+const estado=document.getElementById("estado");
+const respuesta=document.getElementById("respuesta");
+const video=document.getElementById("video");
+const texto=document.getElementById("texto");
+const enviar=document.getElementById("enviar");
+const encender=document.getElementById("encender");
+const apagar=document.getElementById("apagar");
 
 
-let cerebro = null;
+/* ================================
+   VARIABLES
+================================ */
 
-let stream = null;
+let cerebro=null;
+let stream=null;
+let reconocimiento=null;
 
-let reconocimiento = null;
+let escuchando=false;
+let hablando=false;
+let asistenteActivo=false;
 
-let escuchando = false;
-
-let hablando = false;
-
-let asistenteActivo = false;
-
-let temporizador = null;
-
-let conversacion = [];
-
-
-/*
-=========================================
-  🧠 CARGAR TRANSFORMERS.JS
-=========================================
-*/
-
-async function iniciarIA() {
-
-  try {
-
-    estado.textContent =
-      "🧠 Conectando con el motor de IA...";
-
-    respuesta.textContent =
-      "Cargando Qwen 0.5B Q4...";
+let temporizador=null;
+let conversacion=[];
 
 
-    /*
-      Importamos Transformers.js
-      DESDE EL MISMO SCRIPT.
+/* ================================
+   🧠 CARGAR CEREBRO
+================================ */
 
-      Si falla, mostraremos el error.
-    */
+async function iniciarIA(){
 
-    const Transformers =
-      await import(
-        "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
-      );
+  try{
 
+    estado.textContent=
+      "🧠 Conectando con el cerebro...";
 
-    const pipeline =
-      Transformers.pipeline;
+    respuesta.textContent=
+      "Preparando Qwen Coder Q4...";
 
+    const Transformers=await import(
+      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+    );
 
-    estado.textContent =
-      "⏳ Descargando el cerebro Q4...";
+    const pipeline=Transformers.pipeline;
 
-    respuesta.textContent =
-      "La primera carga puede tardar bastante. No cierres esta página.";
+    estado.textContent=
+      "⏳ Descargando cerebro Q4...";
 
+    respuesta.textContent=
+      "Primera carga: espera sin cerrar esta página.";
 
-    /*
-      Qwen 0.5B Q4 + WebGPU.
+    cerebro=await pipeline(
+      "text-generation",
+      "onnx-community/Qwen2.5-Coder-0.5B-Instruct",
+      {
+        dtype:"q4",
+        device:"webgpu"
+      }
+    );
 
-      Esta es la configuración
-      documentada por Hugging Face.
-    */
-
-    cerebro =
-      await pipeline(
-
-        "text-generation",
-
-        "onnx-community/Qwen2.5-0.5B-Instruct",
-
-        {
-          dtype: "q4",
-          device: "webgpu"
-        }
-
-      );
-
-
-    estado.textContent =
+    estado.textContent=
       "🟢 Cerebro listo";
 
-    respuesta.textContent =
-      "¡Listo! Puedes escribirme una pregunta.";
+    respuesta.textContent=
+      "¡Listo! Puedes preguntarme cualquier cosa.";
 
-
-  } catch (error) {
+  }catch(error){
 
     console.error(error);
 
-    estado.textContent =
-      "❌ Error al cargar la IA";
+    estado.textContent=
+      "❌ Error al cargar el cerebro";
 
-    respuesta.textContent =
-      "ERROR:\n\n" +
-      error.message;
-
+    respuesta.textContent=
+      "Error:\n\n"+error.message;
   }
-
 }
 
 
-/*
-=========================================
-  📷 CÁMARA
-=========================================
-*/
+/* ================================
+   📷 CÁMARA
+================================ */
 
-async function encenderCamara(
-  tipo = "environment"
-) {
+async function encenderCamara(tipo="environment"){
 
-  try {
+  try{
 
-    if (stream) {
-
-      stream
-        .getTracks()
-        .forEach(track => track.stop());
-
+    if(stream){
+      stream.getTracks().forEach(t=>t.stop());
     }
 
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:tipo},
+      audio:false
+    });
 
-    stream =
-      await navigator.mediaDevices
-        .getUserMedia({
+    video.srcObject=stream;
 
-          video: {
-            facingMode: tipo
-          },
+    asistenteActivo=true;
 
-          audio: false
-
-        });
-
-
-    video.srcObject =
-      stream;
-
-
-    asistenteActivo =
-      true;
-
-
-    if (tipo === "user") {
-
-      estado.textContent =
-        "🟢 Cámara frontal activa + escuchando";
-
-    } else {
-
-      estado.textContent =
-        "🟢 Cámara trasera activa + escuchando";
-
-    }
-
+    estado.textContent=
+      tipo==="user"
+      ? "🟢 Cámara frontal activa"
+      : "🟢 Cámara trasera activa";
 
     iniciarEscucha();
 
-
-  } catch (error) {
+  }catch(error){
 
     console.error(error);
 
-    estado.textContent =
-      "❌ No puedo acceder a la cámara";
-
-    hablar(
-      "No puedo acceder a la cámara."
-    );
-
+    hablar("No puedo acceder a la cámara.");
   }
-
 }
 
 
-function apagarCamara() {
+function apagarCamara(){
 
-  if (stream) {
-
-    stream
-      .getTracks()
-      .forEach(track => track.stop());
-
-    stream = null;
-
+  if(stream){
+    stream.getTracks().forEach(t=>t.stop());
+    stream=null;
   }
 
+  video.srcObject=null;
 
-  video.srcObject =
-    null;
+  asistenteActivo=true;
 
-
-  /*
-    El micrófono permanece activo.
-  */
-
-  asistenteActivo =
-    true;
-
-
-  estado.textContent =
+  estado.textContent=
     "🔴 Cámara apagada. Te sigo escuchando.";
-
 }
 
 
-/*
-=========================================
-  🔊 VOZ
-=========================================
-*/
+/* ================================
+   🔊 HABLAR
+================================ */
 
-function hablar(mensaje) {
+function hablar(mensaje){
 
   detenerEscucha();
 
   speechSynthesis.cancel();
 
-  hablando = true;
+  hablando=true;
 
+  respuesta.textContent=
+    "🤖 "+mensaje;
 
-  respuesta.textContent =
-    "🤖 " + mensaje;
+  const voz=
+    new SpeechSynthesisUtterance(mensaje);
 
+  voz.lang="es-ES";
+  voz.rate=1;
+  voz.pitch=1;
+  voz.volume=1;
 
-  const voz =
-    new SpeechSynthesisUtterance(
-      mensaje
+  voz.onend=()=>{
+
+    hablando=false;
+
+    setTimeout(
+      iniciarEscucha,
+      500
     );
+  };
 
-
-  voz.lang =
-    "es-ES";
-
-  voz.rate =
-    1;
-
-  voz.pitch =
-    1;
-
-  voz.volume =
-    1;
-
-
-  voz.onend =
-    function() {
-
-      hablando = false;
-
-
-      setTimeout(
-        iniciarEscucha,
-        500
-      );
-
-    };
-
-
-  speechSynthesis.speak(
-    voz
-  );
-
+  speechSynthesis.speak(voz);
 }
 
 
-/*
-=========================================
-  🎤 VOZ A TEXTO
-=========================================
-*/
+/* ================================
+   🎤 RECONOCIMIENTO
+================================ */
 
-const SpeechRecognition =
+const SpeechRecognition=
   window.SpeechRecognition ||
   window.webkitSpeechRecognition;
 
 
-if (SpeechRecognition) {
+if(SpeechRecognition){
 
-  reconocimiento =
+  reconocimiento=
     new SpeechRecognition();
 
+  reconocimiento.lang="es-ES";
+  reconocimiento.continuous=true;
+  reconocimiento.interimResults=true;
 
-  reconocimiento.lang =
-    "es-ES";
+  reconocimiento.onstart=()=>{
 
+    escuchando=true;
 
-  reconocimiento.continuous =
-    true;
-
-
-  reconocimiento.interimResults =
-    true;
-
-
-  reconocimiento.onstart =
-    function() {
-
-      escuchando =
-        true;
-
-      estado.textContent =
-        "🎤 Escuchando...";
-
-    };
+    estado.textContent=
+      "🎤 Escuchando...";
+  };
 
 
-  reconocimiento.onresult =
-    function(event) {
+  reconocimiento.onresult=(event)=>{
 
-      if (hablando) {
-        return;
-      }
+    if(hablando)return;
 
+    let frase="";
 
-      let frase = "";
+    for(
+      let i=event.resultIndex;
+      i<event.results.length;
+      i++
+    ){
+      frase+=event.results[i][0].transcript;
+    }
 
+    frase=frase.trim();
 
-      for (
-        let i = event.resultIndex;
-        i < event.results.length;
-        i++
-      ) {
+    if(!frase)return;
 
-        frase +=
-          event.results[i][0]
-            .transcript;
+    respuesta.textContent=
+      "👤 "+frase;
 
-      }
+    clearTimeout(temporizador);
 
-
-      frase =
-        frase.trim();
-
-
-      if (!frase) {
-        return;
-      }
+    temporizador=setTimeout(()=>{
+      procesar(frase);
+    },1000);
+  };
 
 
-      respuesta.textContent =
-        "👤 " + frase;
+  reconocimiento.onerror=(event)=>{
+    console.log("Voice:",event.error);
+  };
 
 
-      clearTimeout(
-        temporizador
+  reconocimiento.onend=()=>{
+
+    escuchando=false;
+
+    if(
+      asistenteActivo &&
+      !hablando
+    ){
+      setTimeout(
+        iniciarEscucha,
+        500
       );
-
-
-      /*
-        1 segundo sin hablar.
-      */
-
-      temporizador =
-        setTimeout(
-          function() {
-
-            procesar(
-              frase
-            );
-
-          },
-          1000
-        );
-
-    };
-
-
-  reconocimiento.onerror =
-    function(event) {
-
-      console.log(
-        "Voice error:",
-        event.error
-      );
-
-    };
-
-
-  reconocimiento.onend =
-    function() {
-
-      escuchando =
-        false;
-
-
-      if (
-        asistenteActivo &&
-        !hablando
-      ) {
-
-        setTimeout(
-          iniciarEscucha,
-          400
-        );
-
-      }
-
-    };
-
+    }
+  };
 }
 
 
-/*
-=========================================
-  🎤 INICIAR ESCUCHA
-=========================================
-*/
+/* ================================
+   🎤 ESCUCHAR
+================================ */
 
-function iniciarEscucha() {
+function iniciarEscucha(){
 
-  if (!reconocimiento) {
-    return;
-  }
+  if(!reconocimiento)return;
+  if(!asistenteActivo)return;
+  if(hablando)return;
+  if(escuchando)return;
 
-
-  if (!asistenteActivo) {
-    return;
-  }
-
-
-  if (hablando) {
-    return;
-  }
-
-
-  if (escuchando) {
-    return;
-  }
-
-
-  try {
-
+  try{
     reconocimiento.start();
-
-  } catch (error) {
-
-    console.log(error);
-
-  }
-
+  }catch(e){}
 }
 
 
-/*
-=========================================
-  🛑 DETENER ESCUCHA
-=========================================
-*/
+function detenerEscucha(){
 
-function detenerEscucha() {
+  if(!reconocimiento)return;
 
-  if (!reconocimiento) {
-    return;
-  }
-
-
-  try {
-
+  try{
     reconocimiento.stop();
+  }catch(e){}
 
-  } catch (error) {
-
-    console.log(error);
-
-  }
-
-
-  escuchando =
-    false;
-
+  escuchando=false;
 }
 
 
-/*
-=========================================
-  🧠 PROCESAR LO QUE DICES
-=========================================
-*/
+/* ================================
+   🧠 PROCESAR
+================================ */
 
-async function procesar(frase) {
+async function procesar(frase){
 
-  const t =
-    frase
-      .toLowerCase()
-      .trim();
+  const t=frase.toLowerCase().trim();
 
 
-  /*
-    ENCENDER CÁMARA
-  */
+  /* CÁMARA */
 
-  if (
+  if(
     t.includes("enciende la cámara") ||
     t.includes("enciende cámara") ||
     t.includes("prende la cámara") ||
     t.includes("prende cámara")
-  ) {
+  ){
 
-    await encenderCamara(
-      "environment"
-    );
+    await encenderCamara("environment");
 
-    hablar(
-      "He encendido la cámara."
-    );
+    hablar("He encendido la cámara.");
 
     return;
-
   }
 
 
-  /*
-    CÁMARA FRONTAL
-  */
+  /* FRONTAL */
 
-  if (
+  if(
     t.includes("cámara frontal") ||
     t.includes("camara frontal")
-  ) {
+  ){
 
-    await encenderCamara(
-      "user"
-    );
+    await encenderCamara("user");
 
     hablar(
       "He cambiado a la cámara frontal."
     );
 
     return;
-
   }
 
 
-  /*
-    CÁMARA TRASERA
-  */
+  /* TRASERA */
 
-  if (
+  if(
     t.includes("cámara trasera") ||
     t.includes("camara trasera")
-  ) {
+  ){
 
-    await encenderCamara(
-      "environment"
-    );
+    await encenderCamara("environment");
 
     hablar(
       "He cambiado a la cámara trasera."
     );
 
     return;
-
   }
 
 
-  /*
-    APAGAR CÁMARA
-  */
+  /* APAGAR */
 
-  if (
+  if(
     t.includes("apaga la cámara") ||
     t.includes("apaga cámara") ||
     t.includes("apagar la cámara") ||
     t.includes("apagar cámara")
-  ) {
+  ){
 
     apagarCamara();
 
@@ -735,270 +457,195 @@ async function procesar(frase) {
     );
 
     return;
-
   }
 
 
-  /*
-    TODO LO DEMÁS:
-    VA AL CEREBRO.
-  */
+  /* CONVERSACIÓN */
 
-  await preguntarIA(
-    frase
-  );
-
+  await preguntar(frase);
 }
 
 
-/*
-=========================================
-  🧠 PREGUNTAR A QWEN
-=========================================
-*/
+/* ================================
+   🧠 PREGUNTAR
+================================ */
 
-async function preguntarIA(
-  pregunta
-) {
+async function preguntar(pregunta){
 
-  if (!cerebro) {
+  if(!cerebro){
 
     hablar(
-      "Mi cerebro todavía no está listo. Mira el mensaje de la pantalla para ver qué ocurrió."
+      "Mi cerebro todavía se está cargando."
     );
 
     return;
-
   }
 
 
-  estado.textContent =
+  estado.textContent=
     "🧠 Pensando...";
 
 
   conversacion.push({
-
-    role: "user",
-
-    content:
-      pregunta
-
+    role:"user",
+    content:pregunta
   });
 
 
-  /*
-    Conservamos las últimas
-    8 intervenciones para ahorrar
-    memoria en el móvil.
-  */
+  /* No guardar demasiada memoria */
 
-  if (
-    conversacion.length > 8
-  ) {
+  if(conversacion.length>8){
 
-    conversacion =
+    conversacion=
       conversacion.slice(-8);
-
   }
 
 
-  const mensajes = [
+  const mensajes=[
 
     {
-      role: "system",
-
+      role:"system",
       content:
-        "Eres Pío IA. Responde siempre en español. Sé natural, clara y útil. Si el usuario pide que le expliques algo, explica paso a paso. Si pregunta sobre programación, enseña el código y explica cómo funciona. No inventes información."
+      `Eres Pío IA, un asistente en español.
+
+      Habla de forma natural.
+
+      Puedes enseñar programación,
+      incluyendo HTML, CSS, JavaScript,
+      Python, Java, C++, Lua, Roblox,
+      Unity y GDevelop.
+
+      Cuando el usuario diga "explícame",
+      explica paso a paso.
+
+      Cuando pida código,
+      proporciona código correcto
+      y explica cómo utilizarlo.
+
+      Mantén el contexto de la conversación.
+
+      No afirmes que puedes ver la cámara
+      si no se te ha proporcionado una imagen.
+
+      No inventes información.`
     },
 
     ...conversacion
-
   ];
 
 
-  try {
+  try{
 
-    const salida =
-      await cerebro(
-        mensajes,
-        {
-          max_new_tokens: 160
-        }
-      );
-
-
-    const generada =
-      salida[0]
-        .generated_text;
+    const salida=await cerebro(
+      mensajes,
+      {
+        max_new_tokens:256,
+        do_sample:false
+      }
+    );
 
 
-    /*
-      Qwen devuelve una conversación.
-      Tomamos el último mensaje.
-    */
-
-    const ultimo =
-      generada[
-        generada.length - 1
-      ];
+    const historial=
+      salida[0].generated_text;
 
 
-    let respuestaIA = "";
+    const ultimo=
+      historial[historial.length-1];
 
 
-    if (
-      ultimo &&
-      typeof ultimo === "object" &&
-      ultimo.content
-    ) {
-
-      respuestaIA =
-        ultimo.content;
-
-    } else {
-
-      respuestaIA =
-        String(
-          ultimo || ""
-        );
-
-    }
+    let respuestaIA=
+      ultimo?.content || "";
 
 
-    respuestaIA =
-      respuestaIA.trim();
+    respuestaIA=
+      String(respuestaIA).trim();
 
 
-    if (!respuestaIA) {
-
-      respuestaIA =
-        "No he conseguido generar una respuesta.";
-
+    if(!respuestaIA){
+      respuestaIA=
+        "No pude generar una respuesta.";
     }
 
 
     conversacion.push({
-
-      role: "assistant",
-
-      content:
-        respuestaIA
-
+      role:"assistant",
+      content:respuestaIA
     });
 
 
-    estado.textContent =
+    estado.textContent=
       "🟢 Listo";
 
 
-    hablar(
-      respuestaIA
-    );
+    hablar(respuestaIA);
 
-
-  } catch (error) {
+  }catch(error){
 
     console.error(error);
 
-    estado.textContent =
+    estado.textContent=
       "❌ Error al responder";
 
-    respuesta.textContent =
-      "Error:\n" +
-      error.message;
-
+    respuesta.textContent=
+      "Error:\n"+error.message;
   }
-
 }
 
 
-/*
-=========================================
-  ✍️ TEXTO
-=========================================
-*/
+/* ================================
+   ✍️ TEXTO
+================================ */
 
-enviar.onclick =
-  async function() {
+enviar.onclick=async()=>{
 
-    const pregunta =
-      texto.value.trim();
+  const pregunta=
+    texto.value.trim();
 
+  if(!pregunta)return;
 
-    if (!pregunta) {
-      return;
-    }
+  texto.value="";
 
+  asistenteActivo=true;
 
-    texto.value =
-      "";
+  await procesar(pregunta);
+};
 
-
-    asistenteActivo =
-      true;
-
-
-    await procesar(
-      pregunta
-    );
-
-  };
-
-
-/*
-=========================================
-  ENTER
-=========================================
-*/
 
 texto.addEventListener(
   "keydown",
-  function(event) {
+  event=>{
 
-    if (
-      event.key === "Enter" &&
+    if(
+      event.key==="Enter" &&
       !event.shiftKey
-    ) {
+    ){
 
       event.preventDefault();
 
       enviar.click();
-
     }
-
   }
 );
 
 
-/*
-=========================================
-  BOTONES
-=========================================
-*/
+/* ================================
+   BOTONES
+================================ */
 
-encender.onclick =
-  function() {
-
-    encenderCamara(
-      "environment"
-    );
-
-  };
+encender.onclick=()=>{
+  asistenteActivo=true;
+  encenderCamara("environment");
+};
 
 
-apagar.onclick =
-  function() {
-
-    apagarCamara();
-
-  };
+apagar.onclick=()=>{
+  apagarCamara();
+};
 
 
-/*
-=========================================
-  🚀 ARRANCAR
-=========================================
-*/
+/* ================================
+   🚀 INICIO
+================================ */
 
 iniciarIA();
 
