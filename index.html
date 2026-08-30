@@ -1,654 +1,131 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pío IA</title>
-
-<style>
-*{box-sizing:border-box}
-
-body{
-  margin:0;
-  background:#101010;
-  color:white;
-  font-family:Arial,sans-serif;
-  text-align:center;
-}
-
-h1{margin:18px 0 8px}
-
-#estado{
-  margin:12px;
-  font-size:17px;
-}
-
-#zona{
-  width:95%;
-  max-width:700px;
-  margin:auto;
-}
-
-video{
-  width:100%;
-  max-height:55vh;
-  background:#000;
-  border-radius:20px;
-  object-fit:cover;
-}
-
-#respuesta{
-  width:95%;
-  max-width:700px;
-  margin:15px auto;
-  padding:18px;
-  background:#222;
-  border-radius:16px;
-  min-height:70px;
-  text-align:left;
-  white-space:pre-wrap;
-  line-height:1.5;
-}
-
-button{
-  border:0;
-  border-radius:12px;
-  padding:13px 18px;
-  margin:5px;
-  font-size:16px;
-  font-weight:bold;
-}
-
-#encender{background:#00c853;color:white}
-#apagar{background:#d50000;color:white}
-#enviar{background:#2979ff;color:white}
-
-#texto{
-  width:95%;
-  max-width:700px;
-  height:70px;
-  margin-top:10px;
-  border-radius:12px;
-  border:0;
-  padding:12px;
-  font-size:16px;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Señor Reno - Visión en Vivo</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 20px; }
+    #app-container { max-width: 600px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 12px; }
+    video { width: 100%; border-radius: 8px; border: 2px solid #ff4757; background: #000; }
+    canvas { display: none; }
+    .status { margin: 15px 0; font-weight: bold; color: #2ed573; }
+    button { background: #ff4757; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; margin: 5px; }
+    button:hover { background: #ff6b81; }
+    #chat { background: #2f3542; padding: 10px; border-radius: 6px; text-align: left; min-height: 80px; margin-top: 15px; }
+  </style>
 </head>
-
 <body>
 
-<h1>🤖 Pío IA</h1>
+<div id="app-container">
+  <h1>🦌 Señor Reno (Visión en Vivo)</h1>
+  
+  <label for="apiKey">Gemini API Key:</label><br>
+  <input type="password" id="apiKey" placeholder="Pega tu API Key aquí" style="padding: 8px; width: 80%; margin: 10px 0;">
+  
+  <div>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
 
-<div id="estado">🧠 Preparando cerebro...</div>
+  <button id="btnStart">Iniciar Señor Reno</button>
+  <button id="btnStop">Detener</button>
 
-<div id="zona">
-  <video id="video" autoplay playsinline muted></video>
+  <div class="status" id="statusText">Estado: Apagado</div>
+  <div id="chat"><b>Señor Reno:</b> Presiona "Iniciar" para comenzar a ver.</div>
 </div>
 
-<button id="encender">📷 Encender cámara</button>
-<button id="apagar">⛔ Apagar cámara</button>
+<script>
+  let video = document.getElementById('webcam');
+  let canvas = document.getElementById('canvas');
+  let ctx = canvas.getContext('2d');
+  let intervalId = null;
+  let synth = window.speechSynthesis;
 
-<br>
-
-<textarea id="texto" placeholder="También puedes escribir aquí..."></textarea>
-
-<br>
-
-<button id="enviar">💬 Enviar</button>
-
-<div id="respuesta">Preparando la IA...</div>
-
-<script type="module">
-
-/* ================================
-   ELEMENTOS
-================================ */
-
-const estado=document.getElementById("estado");
-const respuesta=document.getElementById("respuesta");
-const video=document.getElementById("video");
-const texto=document.getElementById("texto");
-const enviar=document.getElementById("enviar");
-const encender=document.getElementById("encender");
-const apagar=document.getElementById("apagar");
-
-
-/* ================================
-   VARIABLES
-================================ */
-
-let cerebro=null;
-let stream=null;
-let reconocimiento=null;
-
-let escuchando=false;
-let hablando=false;
-let asistenteActivo=false;
-
-let temporizador=null;
-let conversacion=[];
-
-
-/* ================================
-   🧠 CARGAR CEREBRO
-================================ */
-
-async function iniciarIA(){
-
-  try{
-
-    estado.textContent=
-      "🧠 Conectando con el cerebro...";
-
-    respuesta.textContent=
-      "Preparando Qwen Coder Q4...";
-
-    const Transformers=await import(
-      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
-    );
-
-    const pipeline=Transformers.pipeline;
-
-    estado.textContent=
-      "⏳ Descargando cerebro Q4...";
-
-    respuesta.textContent=
-      "Primera carga: espera sin cerrar esta página.";
-
-    cerebro=await pipeline(
-      "text-generation",
-      "onnx-community/Qwen2.5-Coder-0.5B-Instruct",
-      {
-        dtype:"q4",
-        device:"webgpu"
-      }
-    );
-
-    estado.textContent=
-      "🟢 Cerebro listo";
-
-    respuesta.textContent=
-      "¡Listo! Puedes preguntarme cualquier cosa.";
-
-  }catch(error){
-
-    console.error(error);
-
-    estado.textContent=
-      "❌ Error al cargar el cerebro";
-
-    respuesta.textContent=
-      "Error:\n\n"+error.message;
+  // 1. Iniciar Cámara Web
+  async function initCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      video.srcObject = stream;
+    } catch (err) {
+      alert("Error accediendo a la cámara: " + err);
+    }
   }
-}
 
+  // 2. Hablar con Voz Novedosa
+  function hablar(texto) {
+    if (synth.speaking) synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(texto);
+    utterance.lang = 'es-ES';
+    utterance.pitch = 1.2; // Tono ligeramente agudo para el personaje
+    utterance.rate = 1.0;
+    synth.speak(utterance);
+  }
 
-/* ================================
-   📷 CÁMARA
-================================ */
-
-async function encenderCamara(tipo="environment"){
-
-  try{
-
-    if(stream){
-      stream.getTracks().forEach(t=>t.stop());
+  // 3. Capturar Fotograma y Enviar a Gemini
+  async function analizarFrame() {
+    const apiKey = document.getElementById('apiKey').value;
+    if (!apiKey) {
+      document.getElementById('statusText').innerText = "Error: Falta la API Key";
+      return;
     }
 
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:tipo},
-      audio:false
-    });
+    // Dibujar frame actual en canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convertir a Base64
+    const base64Image = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
 
-    video.srcObject=stream;
+    document.getElementById('statusText').innerText = "Señor Reno está observando...";
 
-    asistenteActivo=true;
+    const payload = {
+      contents: [{
+        parts: [
+          { text: "Eres Señor Reno, un asistente amable y divertido. Mira el video en vivo y describe en máximo 2 oraciones breves lo que ves o lo que cambió frente a la cámara. Habla directamente al usuario." },
+          { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+        ]
+      }]
+    };
 
-    estado.textContent=
-      tipo==="user"
-      ? "🟢 Cámara frontal activa"
-      : "🟢 Cámara trasera activa";
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-    iniciarEscucha();
+      const data = await response.json();
+      const respuestaTexto = data.candidates[0].content.parts[0].text;
+      
+      document.getElementById('chat').innerHTML = `<b>Señor Reno:</b> ${respuestaTexto}`;
+      document.getElementById('statusText').innerText = "Estado: Escaneando continuo...";
+      
+      // Reproducir voz
+      hablar(respuestaTexto);
 
-  }catch(error){
-
-    console.error(error);
-
-    hablar("No puedo acceder a la cámara.");
-  }
-}
-
-
-function apagarCamara(){
-
-  if(stream){
-    stream.getTracks().forEach(t=>t.stop());
-    stream=null;
-  }
-
-  video.srcObject=null;
-
-  asistenteActivo=true;
-
-  estado.textContent=
-    "🔴 Cámara apagada. Te sigo escuchando.";
-}
-
-
-/* ================================
-   🔊 HABLAR
-================================ */
-
-function hablar(mensaje){
-
-  detenerEscucha();
-
-  speechSynthesis.cancel();
-
-  hablando=true;
-
-  respuesta.textContent=
-    "🤖 "+mensaje;
-
-  const voz=
-    new SpeechSynthesisUtterance(mensaje);
-
-  voz.lang="es-ES";
-  voz.rate=1;
-  voz.pitch=1;
-  voz.volume=1;
-
-  voz.onend=()=>{
-
-    hablando=false;
-
-    setTimeout(
-      iniciarEscucha,
-      500
-    );
-  };
-
-  speechSynthesis.speak(voz);
-}
-
-
-/* ================================
-   🎤 RECONOCIMIENTO
-================================ */
-
-const SpeechRecognition=
-  window.SpeechRecognition ||
-  window.webkitSpeechRecognition;
-
-
-if(SpeechRecognition){
-
-  reconocimiento=
-    new SpeechRecognition();
-
-  reconocimiento.lang="es-ES";
-  reconocimiento.continuous=true;
-  reconocimiento.interimResults=true;
-
-  reconocimiento.onstart=()=>{
-
-    escuchando=true;
-
-    estado.textContent=
-      "🎤 Escuchando...";
-  };
-
-
-  reconocimiento.onresult=(event)=>{
-
-    if(hablando)return;
-
-    let frase="";
-
-    for(
-      let i=event.resultIndex;
-      i<event.results.length;
-      i++
-    ){
-      frase+=event.results[i][0].transcript;
+    } catch (err) {
+      console.error(err);
+      document.getElementById('statusText').innerText = "Error al procesar la imagen.";
     }
-
-    frase=frase.trim();
-
-    if(!frase)return;
-
-    respuesta.textContent=
-      "👤 "+frase;
-
-    clearTimeout(temporizador);
-
-    temporizador=setTimeout(()=>{
-      procesar(frase);
-    },1000);
-  };
-
-
-  reconocimiento.onerror=(event)=>{
-    console.log("Voice:",event.error);
-  };
-
-
-  reconocimiento.onend=()=>{
-
-    escuchando=false;
-
-    if(
-      asistenteActivo &&
-      !hablando
-    ){
-      setTimeout(
-        iniciarEscucha,
-        500
-      );
-    }
-  };
-}
-
-
-/* ================================
-   🎤 ESCUCHAR
-================================ */
-
-function iniciarEscucha(){
-
-  if(!reconocimiento)return;
-  if(!asistenteActivo)return;
-  if(hablando)return;
-  if(escuchando)return;
-
-  try{
-    reconocimiento.start();
-  }catch(e){}
-}
-
-
-function detenerEscucha(){
-
-  if(!reconocimiento)return;
-
-  try{
-    reconocimiento.stop();
-  }catch(e){}
-
-  escuchando=false;
-}
-
-
-/* ================================
-   🧠 PROCESAR
-================================ */
-
-async function procesar(frase){
-
-  const t=frase.toLowerCase().trim();
-
-
-  /* CÁMARA */
-
-  if(
-    t.includes("enciende la cámara") ||
-    t.includes("enciende cámara") ||
-    t.includes("prende la cámara") ||
-    t.includes("prende cámara")
-  ){
-
-    await encenderCamara("environment");
-
-    hablar("He encendido la cámara.");
-
-    return;
   }
 
-
-  /* FRONTAL */
-
-  if(
-    t.includes("cámara frontal") ||
-    t.includes("camara frontal")
-  ){
-
-    await encenderCamara("user");
-
-    hablar(
-      "He cambiado a la cámara frontal."
-    );
-
-    return;
-  }
-
-
-  /* TRASERA */
-
-  if(
-    t.includes("cámara trasera") ||
-    t.includes("camara trasera")
-  ){
-
-    await encenderCamara("environment");
-
-    hablar(
-      "He cambiado a la cámara trasera."
-    );
-
-    return;
-  }
-
-
-  /* APAGAR */
-
-  if(
-    t.includes("apaga la cámara") ||
-    t.includes("apaga cámara") ||
-    t.includes("apagar la cámara") ||
-    t.includes("apagar cámara")
-  ){
-
-    apagarCamara();
-
-    hablar(
-      "He apagado la cámara. Te sigo escuchando."
-    );
-
-    return;
-  }
-
-
-  /* CONVERSACIÓN */
-
-  await preguntar(frase);
-}
-
-
-/* ================================
-   🧠 PREGUNTAR
-================================ */
-
-async function preguntar(pregunta){
-
-  if(!cerebro){
-
-    hablar(
-      "Mi cerebro todavía se está cargando."
-    );
-
-    return;
-  }
-
-
-  estado.textContent=
-    "🧠 Pensando...";
-
-
-  conversacion.push({
-    role:"user",
-    content:pregunta
+  // Controladores de eventos
+  document.getElementById('btnStart').addEventListener('click', () => {
+    initCamera();
+    // Analizar el flujo de video cada 4 segundos
+    intervalId = setInterval(analizarFrame, 4000);
+    document.getElementById('statusText').innerText = "Iniciando transmisión...";
   });
 
-
-  /* No guardar demasiada memoria */
-
-  if(conversacion.length>8){
-
-    conversacion=
-      conversacion.slice(-8);
-  }
-
-
-  const mensajes=[
-
-    {
-      role:"system",
-      content:
-      `Eres Pío IA, un asistente en español.
-
-      Habla de forma natural.
-
-      Puedes enseñar programación,
-      incluyendo HTML, CSS, JavaScript,
-      Python, Java, C++, Lua, Roblox,
-      Unity y GDevelop.
-
-      Cuando el usuario diga "explícame",
-      explica paso a paso.
-
-      Cuando pida código,
-      proporciona código correcto
-      y explica cómo utilizarlo.
-
-      Mantén el contexto de la conversación.
-
-      No afirmes que puedes ver la cámara
-      si no se te ha proporcionado una imagen.
-
-      No inventes información.`
-    },
-
-    ...conversacion
-  ];
-
-
-  try{
-
-    const salida=await cerebro(
-      mensajes,
-      {
-        max_new_tokens:256,
-        do_sample:false
-      }
-    );
-
-
-    const historial=
-      salida[0].generated_text;
-
-
-    const ultimo=
-      historial[historial.length-1];
-
-
-    let respuestaIA=
-      ultimo?.content || "";
-
-
-    respuestaIA=
-      String(respuestaIA).trim();
-
-
-    if(!respuestaIA){
-      respuestaIA=
-        "No pude generar una respuesta.";
+  document.getElementById('btnStop').addEventListener('click', () => {
+    if (intervalId) clearInterval(intervalId);
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
     }
-
-
-    conversacion.push({
-      role:"assistant",
-      content:respuestaIA
-    });
-
-
-    estado.textContent=
-      "🟢 Listo";
-
-
-    hablar(respuestaIA);
-
-  }catch(error){
-
-    console.error(error);
-
-    estado.textContent=
-      "❌ Error al responder";
-
-    respuesta.textContent=
-      "Error:\n"+error.message;
-  }
-}
-
-
-/* ================================
-   ✍️ TEXTO
-================================ */
-
-enviar.onclick=async()=>{
-
-  const pregunta=
-    texto.value.trim();
-
-  if(!pregunta)return;
-
-  texto.value="";
-
-  asistenteActivo=true;
-
-  await procesar(pregunta);
-};
-
-
-texto.addEventListener(
-  "keydown",
-  event=>{
-
-    if(
-      event.key==="Enter" &&
-      !event.shiftKey
-    ){
-
-      event.preventDefault();
-
-      enviar.click();
-    }
-  }
-);
-
-
-/* ================================
-   BOTONES
-================================ */
-
-encender.onclick=()=>{
-  asistenteActivo=true;
-  encenderCamara("environment");
-};
-
-
-apagar.onclick=()=>{
-  apagarCamara();
-};
-
-
-/* ================================
-   🚀 INICIO
-================================ */
-
-iniciarIA();
-
+    document.getElementById('statusText').innerText = "Estado: Apagado";
+  });
 </script>
 
 </body>
